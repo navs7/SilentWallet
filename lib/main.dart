@@ -8,6 +8,7 @@ import 'screens/onboarding.dart';
 import 'services/lock.dart';
 import 'services/notifications.dart';
 import 'services/settings.dart';
+import 'theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -32,17 +33,13 @@ class SilentWalletApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<Settings>();
-    ThemeData theme(Brightness b) => ThemeData(
-          useMaterial3: true,
-          colorSchemeSeed: const Color(0xFF2E7D6B),
-          brightness: b,
-        );
     return MaterialApp(
       title: 'Silent Wallet',
       debugShowCheckedModeBanner: false,
-      theme: theme(Brightness.light),
-      darkTheme: theme(Brightness.dark),
+      theme: buildTheme(Brightness.light),
+      darkTheme: buildTheme(Brightness.dark),
       themeMode: settings.themeMode,
+      builder: compactText,
       home: const _Gate(),
     );
   }

@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../core/models.dart';
 import '../core/repo.dart';
-import '../services/settings.dart';
 import '../util.dart';
-import 'backup_screen.dart';
 import 'tx_edit.dart';
 
 class TxListScreen extends StatefulWidget {
@@ -26,7 +23,6 @@ class _TxListScreenState extends State<TxListScreen> {
   @override
   Widget build(BuildContext context) {
     final repo = context.watch<Repo>();
-    final settings = context.watch<Settings>();
     final range = monthRange(_month);
 
     return FutureBuilder<List<Tx>>(
@@ -70,7 +66,7 @@ class _TxListScreenState extends State<TxListScreen> {
                       Expanded(
                         child: Text(range.label,
                             textAlign: TextAlign.center,
-                            style: Theme.of(context).textTheme.titleLarge),
+                            style: Theme.of(context).textTheme.titleMedium),
                       ),
                       IconButton(onPressed: () => _shift(1), icon: const Icon(Icons.chevron_right)),
                       IconButton(
@@ -79,13 +75,11 @@ class _TxListScreenState extends State<TxListScreen> {
                     ]),
             ),
           ),
-          if (settings.backupDue(repo.hasData))
-            SliverToBoxAdapter(child: _BackupBanner(settings: settings)),
           SliverToBoxAdapter(
             child: Card(
-              margin: const EdgeInsets.all(12),
+              margin: const EdgeInsets.fromLTRB(10, 4, 10, 4),
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 child: Row(children: [
                   _Stat('Income', income, Colors.green.shade600),
                   _Stat('Expense', expense, Colors.red.shade400),
@@ -113,7 +107,7 @@ class _TxListScreenState extends State<TxListScreen> {
               }
               return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                  padding: const EdgeInsets.fromLTRB(14, 8, 14, 2),
                   child: Row(children: [
                     Expanded(
                         child: Text(dayLabel(d),
@@ -126,7 +120,7 @@ class _TxListScreenState extends State<TxListScreen> {
               ]);
             },
           ),
-          const SliverToBoxAdapter(child: SizedBox(height: 88)),
+          const SliverToBoxAdapter(child: SizedBox(height: 76)),
         ]);
       },
     );
@@ -152,27 +146,6 @@ class _Stat extends StatelessWidget {
           ),
         ]),
       );
-}
-
-class _BackupBanner extends StatelessWidget {
-  final Settings settings;
-  const _BackupBanner({required this.settings});
-  @override
-  Widget build(BuildContext context) {
-    final last = settings.lastBackup;
-    return Card(
-      color: Theme.of(context).colorScheme.tertiaryContainer,
-      margin: const EdgeInsets.symmetric(horizontal: 12),
-      child: ListTile(
-        leading: const Icon(Icons.warning_amber_rounded),
-        title: Text(last == null ? 'No backup yet' : 'Last backup ${DateFormat('d MMM').format(last)}'),
-        subtitle: const Text('Your data exists only on this phone. Export an encrypted backup.'),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () => Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const BackupScreen())),
-      ),
-    );
-  }
 }
 
 class TxTile extends StatelessWidget {
@@ -204,8 +177,10 @@ class TxTile extends StatelessWidget {
     ].join(' • ');
     return ListTile(
       leading: CircleAvatar(
+        radius: 16,
         backgroundColor: isTransfer ? Theme.of(context).colorScheme.primaryContainer : Color(cat?.color ?? 0xFF90A4AE),
         child: Icon(isTransfer ? Icons.swap_horiz : (cat?.iconData ?? Icons.category),
+            size: 18,
             color: isTransfer ? Theme.of(context).colorScheme.onPrimaryContainer : Colors.white),
       ),
       title: Text(title),

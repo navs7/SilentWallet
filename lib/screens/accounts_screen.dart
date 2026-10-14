@@ -20,20 +20,20 @@ class AccountsScreen extends StatelessWidget {
             .fold<int>(0, (s, a) => s + (bal[a.id] ?? 0));
         return ListView(padding: const EdgeInsets.only(bottom: 96), children: [
           Card(
-            margin: const EdgeInsets.all(12),
+            margin: const EdgeInsets.fromLTRB(10, 6, 10, 4),
             child: Padding(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(12),
               child: Column(children: [
                 const Text('Total balance'),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 Text(money(total),
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w600)),
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600)),
               ]),
             ),
           ),
           for (final a in repo.accounts)
             ListTile(
-              leading: CircleAvatar(child: Icon(accountTypes[a.type] ?? Icons.folder)),
+              leading: CircleAvatar(radius: 16, child: Icon(accountTypes[a.type] ?? Icons.folder, size: 18)),
               title: Text(a.name + (a.archived ? ' (archived)' : '')),
               subtitle: Text(a.type),
               trailing: Text(money(bal[a.id] ?? a.openingBalance),
@@ -41,7 +41,7 @@ class AccountsScreen extends StatelessWidget {
               onTap: () => showAccountEditor(context, a),
             ),
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(10),
             child: OutlinedButton.icon(
               onPressed: () => showAccountEditor(context, null),
               icon: const Icon(Icons.add),

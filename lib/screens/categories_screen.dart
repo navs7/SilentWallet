@@ -15,13 +15,15 @@ class CategoriesScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 2),
               child: Text(title, style: Theme.of(context).textTheme.titleSmall),
             ),
             for (final c in repo.categories.where((c) => c.kind == kind))
               ListTile(
                 leading: CircleAvatar(
-                    backgroundColor: Color(c.color), child: Icon(c.iconData, color: Colors.white)),
+                    radius: 16,
+                    backgroundColor: Color(c.color),
+                    child: Icon(c.iconData, size: 18, color: Colors.white)),
                 title: Text(c.name),
                 trailing: c.isCustom ? const Icon(Icons.edit, size: 18) : null,
                 onTap: () => _edit(context, c, kind),

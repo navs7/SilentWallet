@@ -219,7 +219,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
       future: _load(repo, range, months),
       builder: (context, snap) {
         final d = snap.data;
-        return ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 96), children: [
+        return ListView(padding: const EdgeInsets.fromLTRB(12, 8, 12, 80), children: [
           SegmentedButton<_Mode>(
             showSelectedIcon: false,
             segments: const [
@@ -241,15 +241,15 @@ class _ReportsScreenState extends State<ReportsScreen> {
             selected: {_kind},
             onSelectionChanged: (s) => setState(() => _kind = s.first),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
           if (d == null)
             const Center(child: Padding(padding: EdgeInsets.all(48), child: CircularProgressIndicator()))
           else ...[
             _summary(context, d),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
             _byCategory(context, d, repo),
             if (months.length > 1) ...[
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
               _trend(context, d, months),
             ],
           ],
@@ -286,7 +286,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
     final cs = Theme.of(context).colorScheme;
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         child: Row(children: [
           _num('Income', d.income, Colors.green.shade600),
           _num('Expense', d.expense, Colors.red.shade400),
@@ -317,19 +317,19 @@ class _ReportsScreenState extends State<ReportsScreen> {
     String nameOf(String id) => repo.category(id)?.name ?? 'Uncategorized';
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         child: Column(children: [
           SizedBox(
-            height: 200,
+            height: 170,
             child: PieChart(PieChartData(
               sectionsSpace: 2,
-              centerSpaceRadius: 50,
+              centerSpaceRadius: 42,
               sections: [
                 for (final e in entries)
                   PieChartSectionData(
                     value: e.value.toDouble(),
                     color: colorOf(e.key),
-                    radius: 48,
+                    radius: 42,
                     title: e.value / total >= 0.07 ? '${(e.value * 100 / total).round()}%' : '',
                     titleStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
                   ),
@@ -363,7 +363,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
     final multiYear = months.first.year != months.last.year;
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('Monthly trend', style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: 8),
@@ -375,7 +375,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
           ]),
           const SizedBox(height: 16),
           SizedBox(
-            height: 200,
+            height: 170,
             child: BarChart(BarChartData(
               maxY: maxV / 100 * 1.15,
               gridData: const FlGridData(show: false),

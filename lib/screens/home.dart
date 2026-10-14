@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../core/repo.dart';
+import '../services/settings.dart';
 import 'accounts_screen.dart';
 import 'more_screen.dart';
 import 'reports_screen.dart';
@@ -24,6 +27,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final backupDue = context.watch<Settings>().backupDue(context.watch<Repo>().hasData);
     return Scaffold(
       body: SafeArea(child: IndexedStack(index: _tab, children: _pages)),
       floatingActionButton: _tab <= 2
@@ -37,11 +41,13 @@ class _HomeScreenState extends State<HomeScreen> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _tab,
         onDestinationSelected: (i) => setState(() => _tab = i),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.receipt_long), label: 'Transactions'),
-          NavigationDestination(icon: Icon(Icons.pie_chart), label: 'Reports'),
-          NavigationDestination(icon: Icon(Icons.account_balance_wallet), label: 'Accounts'),
-          NavigationDestination(icon: Icon(Icons.more_horiz), label: 'More'),
+        destinations: [
+          const NavigationDestination(icon: Icon(Icons.receipt_long), label: 'Transactions'),
+          const NavigationDestination(icon: Icon(Icons.pie_chart), label: 'Reports'),
+          const NavigationDestination(icon: Icon(Icons.account_balance_wallet), label: 'Accounts'),
+          NavigationDestination(
+              icon: Badge(isLabelVisible: backupDue, child: const Icon(Icons.more_horiz)),
+              label: 'More'),
         ],
       ),
     );

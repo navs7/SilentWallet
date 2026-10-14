@@ -32,6 +32,7 @@ class RecurringScreen extends StatelessWidget {
               for (final r in repo.recurring)
                 ListTile(
                   leading: CircleAvatar(
+                    radius: 16,
                     backgroundColor: Color(repo.category(r.categoryId)?.color ?? 0xFF90A4AE),
                     child: Icon(repo.category(r.categoryId)?.iconData ?? Icons.repeat, color: Colors.white),
                   ),

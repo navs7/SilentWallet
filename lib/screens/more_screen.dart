@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../core/repo.dart';
 import '../services/lock.dart';
 import '../services/settings.dart';
 import '../util.dart';
@@ -17,12 +19,27 @@ class MoreScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = context.watch<Settings>();
+    final repo = context.watch<Repo>();
     final lock = context.read<LockController>();
+    final last = s.lastBackup;
     return ListView(children: [
       Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-        child: Text('More', style: Theme.of(context).textTheme.headlineSmall),
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
+        child: Text('More', style: Theme.of(context).textTheme.titleLarge),
       ),
+      if (s.backupDue(repo.hasData))
+        Card(
+          color: Theme.of(context).colorScheme.tertiaryContainer,
+          child: ListTile(
+            leading: const Icon(Icons.warning_amber_rounded),
+            title: Text(last == null
+                ? 'No backup yet'
+                : 'Last backup ${DateFormat('d MMM').format(last)}'),
+            subtitle: const Text('Your data exists only on this phone. Export an encrypted backup.'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _open(context, const BackupScreen()),
+          ),
+        ),
       ListTile(
         leading: const Icon(Icons.repeat),
         title: const Text('Recurring expenses'),
@@ -36,7 +53,9 @@ class MoreScreen extends StatelessWidget {
       ListTile(
         leading: const Icon(Icons.backup),
         title: const Text('Backup & restore'),
-        subtitle: const Text('Export an encrypted backup file'),
+        subtitle: Text(last == null
+            ? 'Never backed up'
+            : 'Last backup ${DateFormat('d MMM yyyy').format(last)}'),
         onTap: () => _open(context, const BackupScreen()),
       ),
       const Divider(),
