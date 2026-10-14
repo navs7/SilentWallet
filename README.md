@@ -11,7 +11,7 @@ An offline expense manager for Android. **Everything stays on the phone** — no
 - Expenses, income and transfers between accounts (Cash, Bank, Card, UPI / Wallet, …)
 - Built-in categories plus your own (custom name, icon and colour)
 - Recurring rules (daily / weekly / monthly / yearly) that post automatically when due
-- Reports: income vs expense, category pie chart, 6-month trend
+- Reports for any month, year, custom date range or all time: income vs expense, category pie chart, monthly trend
 - Receipt photos attached to transactions
 - App lock with fingerprint / face / phone PIN
 - Password-encrypted backup and restore, with a weekly local reminder
