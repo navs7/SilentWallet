@@ -2,6 +2,10 @@
 
 An offline expense manager for Android. **Everything stays on the phone** — no account, no cloud, no analytics, and no internet permission.
 
+## Download
+
+**[Get the latest APK from Releases](https://github.com/navs7/SilentWallet/releases/latest)** — pick `arm64-v8a` unless your phone is very old. Checksums are in `SHA256SUMS.txt` on the same page; install steps are in [INSTALL-GUIDE.md](INSTALL-GUIDE.md).
+
 ## Features
 
 - Expenses, income and transfers between accounts (Cash, Bank, Card, UPI / Wallet, …)
