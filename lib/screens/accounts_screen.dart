@@ -74,7 +74,7 @@ Future<void> showAccountEditor(BuildContext context, Account? existing) async {
           TextField(controller: name, decoration: const InputDecoration(labelText: 'Name'), autofocus: true),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
-            value: type,
+            initialValue: type,
             decoration: const InputDecoration(labelText: 'Type'),
             items: [for (final t in accountTypes.keys) DropdownMenuItem(value: t, child: Text(t))],
             onChanged: (v) => set(() => type = v!),

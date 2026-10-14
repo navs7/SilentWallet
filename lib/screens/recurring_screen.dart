@@ -95,7 +95,7 @@ class RecurringScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<Frequency>(
-                value: freq,
+                initialValue: freq,
                 decoration: const InputDecoration(labelText: 'Repeats'),
                 items: [
                   for (final f in Frequency.values)
@@ -105,7 +105,7 @@ class RecurringScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: accountId,
+                initialValue: accountId,
                 decoration: const InputDecoration(labelText: 'Account'),
                 items: [
                   for (final a in repo.accounts.where((a) => !a.archived || a.id == accountId))
@@ -115,7 +115,8 @@ class RecurringScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String?>(
-                value: categoryId,
+                key: ValueKey('cat-${type.name}'),
+                initialValue: categoryId,
                 decoration: const InputDecoration(labelText: 'Category'),
                 items: [
                   const DropdownMenuItem(value: null, child: Text('None')),

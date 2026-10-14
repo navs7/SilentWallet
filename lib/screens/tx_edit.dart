@@ -189,7 +189,7 @@ class _TxEditScreenState extends State<TxEditScreen> {
           ),
           const SizedBox(height: 16),
           DropdownButtonFormField<String>(
-            value: _accountId,
+            initialValue: _accountId,
             decoration: InputDecoration(
                 labelText: _type == TxType.transfer ? 'From account' : 'Account'),
             items: [
@@ -204,7 +204,8 @@ class _TxEditScreenState extends State<TxEditScreen> {
           if (_type == TxType.transfer) ...[
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: _toAccountId,
+              key: ValueKey('to-$_accountId'),
+              initialValue: _toAccountId,
               decoration: const InputDecoration(labelText: 'To account'),
               items: [
                 for (final a in accounts.where((a) => a.id != _accountId))
