@@ -25,7 +25,7 @@ class TxEditScreen extends StatefulWidget {
 class _TxEditScreenState extends State<TxEditScreen> {
   late TxType _type;
   String _amount = '';
-  String _note = '';
+  final _noteCtl = TextEditingController();
   String? _categoryId;
   String? _accountId;
   String? _toAccountId;
@@ -52,7 +52,7 @@ class _TxEditScreenState extends State<TxEditScreen> {
       }
       _amount = s;
     }
-    _note = t?.note ?? '';
+    _noteCtl.text = t?.note ?? '';
     _categoryId = t?.categoryId;
     final active = repo.accounts.where((a) => !a.archived).toList();
     _accountId = t?.accountId ?? (active.isNotEmpty ? active.first.id : null);
@@ -64,6 +64,12 @@ class _TxEditScreenState extends State<TxEditScreen> {
         if (mounted) setState(() => _receiptPreview = b);
       });
     }
+  }
+
+  @override
+  void dispose() {
+    _noteCtl.dispose();
+    super.dispose();
   }
 
   // ---------- amount pad ----------
@@ -101,35 +107,6 @@ class _TxEditScreenState extends State<TxEditScreen> {
   );
 
   // ---------- note / date / receipt ----------
-  Future<void> _editNote() async {
-    final c = TextEditingController(text: _note);
-    final v = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Note'),
-        content: TextField(
-          controller: c,
-          autofocus: true,
-          maxLines: 3,
-          minLines: 1,
-          textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(hintText: 'What was this for?'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, c.text.trim()),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-    if (v != null) setState(() => _note = v);
-  }
-
   Future<void> _pickDate() async {
     final d = await showDatePicker(
       context: context,
@@ -255,7 +232,7 @@ class _TxEditScreenState extends State<TxEditScreen> {
         accountId: _accountId!,
         toAccountId: _type == TxType.transfer ? _toAccountId : null,
         categoryId: _type == TxType.transfer ? null : _categoryId,
-        note: _note,
+        note: _noteCtl.text.trim(),
         date: _date,
         receipt: receipt,
         recurringId: old?.recurringId,
@@ -302,35 +279,6 @@ class _TxEditScreenState extends State<TxEditScreen> {
           ),
       ],
       onChanged: onChanged,
-    );
-  }
-
-  Widget _pill(
-    IconData icon,
-    String label,
-    VoidCallback onTap, {
-    bool active = false,
-  }) {
-    final cs = Theme.of(context).colorScheme;
-    return Expanded(
-      child: OutlinedButton(
-        onPressed: onTap,
-        style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          minimumSize: const Size(0, 38),
-          backgroundColor: active ? cs.primaryContainer : null,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 16),
-            const SizedBox(width: 4),
-            Flexible(
-              child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -407,7 +355,6 @@ class _TxEditScreenState extends State<TxEditScreen> {
         : DateFormat('d MMM yy').format(_date);
 
     return Scaffold(
-      resizeToAvoidBottomInset: false, // the page never reflows or scrolls
       appBar: AppBar(
         title: Text(
           widget.existing == null ? 'Add transaction' : 'Edit transaction',
@@ -423,153 +370,220 @@ class _TxEditScreenState extends State<TxEditScreen> {
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, box) {
-            // Everything except the pad and the categories is roughly 266px.
+            // With the system keyboard closed the page is a fixed layout that
+            // does not scroll. While typing a note the keyboard covers the
+            // lower part, so the same layout becomes scrollable to reach it.
+            final view = View.of(context);
+            final keyboard = view.viewInsets.bottom / view.devicePixelRatio;
+            final navBar = view.padding.bottom / view.devicePixelRatio;
+            final fullH =
+                box.maxHeight + (keyboard > 0 ? keyboard - navBar : 0);
+            // Everything except the pad and the categories is roughly 280px.
             // Give categories at least ~130px; the pad shrinks on short screens.
-            final keyH = ((box.maxHeight - 266 - 130) / 4).clamp(34.0, 46.0);
-            return Padding(
-              padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
-              child: Column(
-                children: [
-                  SizedBox(
-                    width: double.infinity,
-                    child: SegmentedButton<TxType>(
-                      showSelectedIcon: false,
-                      segments: const [
-                        ButtonSegment(
-                          value: TxType.expense,
-                          label: Text('Expense'),
-                        ),
-                        ButtonSegment(
-                          value: TxType.income,
-                          label: Text('Income'),
-                        ),
-                        ButtonSegment(
-                          value: TxType.transfer,
-                          label: Text('Transfer'),
-                        ),
-                      ],
-                      selected: {_type},
-                      onSelectionChanged: (s) => setState(() {
-                        _type = s.first;
-                        _categoryId = null;
-                      }),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  // Amount display
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: cs.surfaceContainerLow,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerRight,
-                      child: Text(
-                        '₹ $_amountText',
-                        style: TextStyle(
-                          fontSize: 34,
-                          fontWeight: FontWeight.w600,
-                          color: _amount.isEmpty
-                              ? cs.onSurfaceVariant
-                              : amountColor,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  // Accounts
-                  if (isTransfer)
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _accountDropdown(
-                            accounts,
-                            'From',
-                            _accountId,
-                            (v) => setState(() {
-                              _accountId = v;
-                              if (_toAccountId == v) _toAccountId = null;
-                            }),
-                          ),
-                        ),
-                        const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 4),
-                          child: Icon(Icons.arrow_forward, size: 18),
-                        ),
-                        Expanded(
-                          child: _accountDropdown(
-                            accounts.where((a) => a.id != _accountId).toList(),
-                            'To',
-                            _toAccountId,
-                            (v) => setState(() => _toAccountId = v),
-                            key: ValueKey('to-$_accountId'),
-                          ),
-                        ),
-                      ],
-                    )
-                  else
-                    _accountDropdown(
-                      accounts,
-                      'Account',
-                      _accountId,
-                      (v) => setState(() => _accountId = v),
-                    ),
-                  const SizedBox(height: 6),
-                  // Categories fill whatever space is left; tags shrink to fit.
-                  Expanded(
-                    child: isTransfer
-                        ? Center(
-                            child: Text(
-                              'Moves money between your accounts',
-                              style: TextStyle(color: cs.onSurfaceVariant),
-                            ),
-                          )
-                        : _CategoryPicker(
-                            categories: cats,
-                            selectedId: _categoryId,
-                            onSelect: (id) => setState(() => _categoryId = id),
-                          ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
+            final keyH = ((fullH - 280 - 130) / 4).clamp(34.0, 46.0);
+            return SingleChildScrollView(
+              physics: keyboard > 0
+                  ? const ClampingScrollPhysics()
+                  : const NeverScrollableScrollPhysics(),
+              child: SizedBox(
+                height: fullH,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
+                  child: Column(
                     children: [
-                      _pill(Icons.event, dateLabel, _pickDate),
-                      const SizedBox(width: 6),
-                      _pill(
-                        Icons.notes,
-                        _note.isEmpty ? 'Note' : _note,
-                        _editNote,
-                        active: _note.isNotEmpty,
+                      SizedBox(
+                        width: double.infinity,
+                        child: SegmentedButton<TxType>(
+                          showSelectedIcon: false,
+                          segments: const [
+                            ButtonSegment(
+                              value: TxType.expense,
+                              label: Text('Expense'),
+                            ),
+                            ButtonSegment(
+                              value: TxType.income,
+                              label: Text('Income'),
+                            ),
+                            ButtonSegment(
+                              value: TxType.transfer,
+                              label: Text('Transfer'),
+                            ),
+                          ],
+                          selected: {_type},
+                          onSelectionChanged: (s) => setState(() {
+                            _type = s.first;
+                            _categoryId = null;
+                          }),
+                        ),
                       ),
-                      const SizedBox(width: 6),
-                      _pill(
-                        _hasReceipt
-                            ? Icons.receipt_long
-                            : Icons.add_a_photo_outlined,
-                        _hasReceipt ? 'Receipt ✓' : 'Receipt',
-                        _receiptSheet,
-                        active: _hasReceipt,
+                      const SizedBox(height: 6),
+                      // Amount display
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: cs.surfaceContainerLow,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerRight,
+                          child: Text(
+                            '₹ $_amountText',
+                            style: TextStyle(
+                              fontSize: 34,
+                              fontWeight: FontWeight.w600,
+                              color: _amount.isEmpty
+                                  ? cs.onSurfaceVariant
+                                  : amountColor,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      // Accounts
+                      if (isTransfer)
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _accountDropdown(
+                                accounts,
+                                'From',
+                                _accountId,
+                                (v) => setState(() {
+                                  _accountId = v;
+                                  if (_toAccountId == v) _toAccountId = null;
+                                }),
+                              ),
+                            ),
+                            const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 4),
+                              child: Icon(Icons.arrow_forward, size: 18),
+                            ),
+                            Expanded(
+                              child: _accountDropdown(
+                                accounts
+                                    .where((a) => a.id != _accountId)
+                                    .toList(),
+                                'To',
+                                _toAccountId,
+                                (v) => setState(() => _toAccountId = v),
+                                key: ValueKey('to-$_accountId'),
+                              ),
+                            ),
+                          ],
+                        )
+                      else
+                        _accountDropdown(
+                          accounts,
+                          'Account',
+                          _accountId,
+                          (v) => setState(() => _accountId = v),
+                        ),
+                      const SizedBox(height: 16),
+                      // Categories fill whatever space is left; tags shrink to fit.
+                      Expanded(
+                        child: isTransfer
+                            ? Center(
+                                child: Text(
+                                  'Moves money between your accounts',
+                                  style: TextStyle(color: cs.onSurfaceVariant),
+                                ),
+                              )
+                            : _CategoryPicker(
+                                categories: cats,
+                                selectedId: _categoryId,
+                                onSelect: (id) =>
+                                    setState(() => _categoryId = id),
+                              ),
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: SizedBox(
+                              height: 42,
+                              child: TextField(
+                                controller: _noteCtl,
+                                maxLines: 1,
+                                textInputAction: TextInputAction.done,
+                                textCapitalization:
+                                    TextCapitalization.sentences,
+                                style: const TextStyle(fontSize: 15),
+                                onTapOutside: (_) =>
+                                    FocusScope.of(context).unfocus(),
+                                decoration: const InputDecoration(
+                                  hintText: 'Add a note',
+                                  prefixIcon: Icon(Icons.notes, size: 18),
+                                  prefixIconConstraints: BoxConstraints(
+                                    minWidth: 34,
+                                    minHeight: 34,
+                                  ),
+                                  border: OutlineInputBorder(),
+                                  contentPadding: EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 8,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          OutlinedButton.icon(
+                            onPressed: _pickDate,
+                            icon: const Icon(Icons.event, size: 16),
+                            label: Text(dateLabel),
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size(0, 42),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Tooltip(
+                            message: _hasReceipt
+                                ? 'Receipt attached'
+                                : 'Attach receipt',
+                            child: OutlinedButton(
+                              onPressed: _receiptSheet,
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: const Size(44, 42),
+                                padding: EdgeInsets.zero,
+                                backgroundColor: _hasReceipt
+                                    ? cs.primaryContainer
+                                    : null,
+                              ),
+                              child: Icon(
+                                _hasReceipt
+                                    ? Icons.receipt_long
+                                    : Icons.add_a_photo_outlined,
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      _keypad(keyH),
+                      const SizedBox(height: 4),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 44,
+                        child: FilledButton(
+                          onPressed: _saving ? null : _save,
+                          child: const Text(
+                            'Save',
+                            style: TextStyle(fontSize: 16),
+                          ),
+                        ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  _keypad(keyH),
-                  const SizedBox(height: 4),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 44,
-                    child: FilledButton(
-                      onPressed: _saving ? null : _save,
-                      child: const Text('Save', style: TextStyle(fontSize: 16)),
-                    ),
-                  ),
-                ],
+                ),
               ),
             );
           },
@@ -618,19 +632,20 @@ class _CategoryPicker extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, box) {
         final base = DefaultTextStyle.of(context).style;
-      double textWidth(String s, double font) {
-        final p = TextPainter(
-          text: TextSpan(
+        double textWidth(String s, double font) {
+          final p = TextPainter(
+            text: TextSpan(
               text: s,
-              style: base.copyWith(fontSize: font, fontWeight: FontWeight.w500)),
-          textDirection: TextDirection.ltr,
-          textScaler: scaler,
-          maxLines: 1,
-        )..layout();
-        return p.width;
-      }
+              style: base.copyWith(fontSize: font, fontWeight: FontWeight.w500),
+            ),
+            textDirection: TextDirection.ltr,
+            textScaler: scaler,
+            maxLines: 1,
+          )..layout();
+          return p.width;
+        }
 
-      double chipWidth(Category c, _Tier t) =>
+        double chipWidth(Category c, _Tier t) =>
             t.hPad * 2 +
             (t.icon ? _iconW : 0) +
             textWidth(c.name, t.font) +

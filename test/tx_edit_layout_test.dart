@@ -92,7 +92,17 @@ void main() {
     testWidgets('fits without scrolling or overflow on ${p.$1}', (t) async {
       await _pump(t, p.$2, top: p.$3, bottom: p.$4);
       expect(tester(t), isNull); // no framework exceptions (e.g. overflow)
-      expect(find.byType(Scrollable), findsNothing);
+      expect(_pageScrollExtent(t), 0, reason: 'page must not scroll');
+      expect(find.byType(SingleChildScrollView), findsOneWidget); // just the page shell
+      // the note field is on the page, fully visible
+      final note = find.byType(TextField);
+      expect(note, findsOneWidget);
+      expect(t.getRect(note).bottom, lessThanOrEqualTo(p.$2.height - p.$4));
+      expect(find.text('Add a note'), findsOneWidget);
+      // clear gap between the Account field and the first category tag
+      final gap = t.getRect(find.text(_defaultExpense.first)).top -
+          t.getRect(find.byType(DropdownButtonFormField<String>)).bottom;
+      expect(gap, greaterThanOrEqualTo(16), reason: 'account/category spacing');
       // every default category is on screen, inside the viewport
       for (final name in _defaultExpense) {
         final f = find.text(name);
@@ -120,6 +130,27 @@ void main() {
     expect(find.text('To'), findsOneWidget);
   });
 
+  testWidgets('typing a note: keyboard opens, page scrolls, field stays reachable', (t) async {
+    await _pump(t, const Size(393, 851));
+    expect(_pageScrollExtent(t), 0);
+    t.view.viewInsets = const FakeViewPadding(bottom: 320);
+    addTearDown(t.view.resetViewInsets);
+    await t.tap(find.byType(TextField));
+    await t.pumpAndSettle();
+    expect(tester(t), isNull);
+    await t.enterText(find.byType(TextField), 'Dinner with friends');
+    await t.pumpAndSettle();
+    expect(find.text('Dinner with friends'), findsOneWidget);
+    expect(_pageScrollExtent(t), greaterThan(0)); // keyboard => scrollable
+    // the note field is above the keyboard
+    expect(t.getRect(find.byType(TextField)).bottom, lessThanOrEqualTo(851 - 320));
+    // closing the keyboard restores the fixed, non-scrolling page
+    t.view.viewInsets = FakeViewPadding.zero;
+    await t.pumpAndSettle();
+    expect(_pageScrollExtent(t), 0);
+    expect(find.text('Dinner with friends'), findsOneWidget);
+  });
+
   testWidgets('number pad builds the amount with two decimals max', (t) async {
     await _pump(t, const Size(393, 851));
     for (final k in ['1', '2', '3', '4', '.', '5', '6', '7']) {
@@ -135,16 +166,21 @@ void main() {
   testWidgets('tags shrink to fit when there are many custom categories', (t) async {
     await _pump(t, const Size(393, 851), extra: 12);
     expect(tester(t), isNull);
-    expect(find.byType(Scrollable), findsNothing);
+    expect(_pageScrollExtent(t), 0);
+    expect(find.byType(SingleChildScrollView), findsOneWidget);
     expect(find.text('Custom tag 11'), findsOneWidget);
   });
 
   testWidgets('absurd category count falls back to scrolling instead of hiding tags', (t) async {
     await _pump(t, const Size(360, 640), extra: 60);
     expect(tester(t), isNull);
-    expect(find.byType(Scrollable), findsOneWidget); // only the tag area
+    expect(find.byType(SingleChildScrollView), findsNWidgets(2)); // page shell + tag area
   });
 }
+
+/// Max scroll extent of the page's outer scroll view (0 = nothing to scroll).
+double _pageScrollExtent(WidgetTester t) =>
+    t.state<ScrollableState>(find.byType(Scrollable).first).position.maxScrollExtent;
 
 // Returns any exception the framework caught while building (overflow etc.).
 Object? tester(WidgetTester t) => t.takeException();

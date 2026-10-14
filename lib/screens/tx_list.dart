@@ -111,9 +111,9 @@ class _TxListScreenState extends State<TxListScreen> {
                   child: Row(children: [
                     Expanded(
                         child: Text(dayLabel(d),
-                            style: Theme.of(context).textTheme.labelLarge)),
+                            style: Theme.of(context).textTheme.titleSmall)),
                     Text(money(net),
-                        style: Theme.of(context).textTheme.labelLarge),
+                        style: Theme.of(context).textTheme.titleSmall),
                   ]),
                 ),
                 for (final t in list) TxTile(tx: t),
@@ -177,25 +177,31 @@ class TxTile extends StatelessWidget {
     ].join(' • ');
     return ListTile(
       leading: CircleAvatar(
-        radius: 16,
+        radius: 19,
         backgroundColor: isTransfer ? Theme.of(context).colorScheme.primaryContainer : Color(cat?.color ?? 0xFF90A4AE),
         child: Icon(isTransfer ? Icons.swap_horiz : (cat?.iconData ?? Icons.category),
-            size: 18,
+            size: 21,
             color: isTransfer ? Theme.of(context).colorScheme.onPrimaryContainer : Colors.white),
       ),
-      title: Text(title),
-      subtitle: Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis),
+      title: Text(title,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+      subtitle: Text(subtitle,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+              fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant)),
       trailing: Row(mainAxisSize: MainAxisSize.min, children: [
         if (tx.receipt != null)
           const Padding(
               padding: EdgeInsets.only(right: 6),
-              child: Icon(Icons.receipt, size: 16)),
+              child: Icon(Icons.receipt, size: 18)),
         if (tx.recurringId != null)
           const Padding(
               padding: EdgeInsets.only(right: 6),
-              child: Icon(Icons.repeat, size: 16)),
+              child: Icon(Icons.repeat, size: 18)),
         Text('$sign${money(tx.amount)}',
-            style: TextStyle(color: color, fontWeight: FontWeight.w600)),
+            style: TextStyle(
+                color: color, fontSize: 17, fontWeight: FontWeight.w700)),
       ]),
       onTap: () => Navigator.push(
           context, MaterialPageRoute(builder: (_) => TxEditScreen(existing: tx))),
