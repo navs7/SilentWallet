@@ -168,6 +168,8 @@ class _TxListScreenState extends State<TxListScreen> {
               SliverToBoxAdapter(
                 child: Card(
                   margin: const EdgeInsets.fromLTRB(10, 4, 10, 4),
+                  elevation: 0,
+                  shape: _outlined(context),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
@@ -222,28 +224,40 @@ class _TxListScreenState extends State<TxListScreen> {
                   if (t.type == TxType.income) net += t.amount;
                   if (t.type == TxType.expense) net -= t.amount;
                 }
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(14, 8, 14, 2),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              dayLabel(d),
+                final cs = Theme.of(context).colorScheme;
+                final line = cs.outline.withValues(alpha: 0.45);
+                return Card(
+                  key: Key('day-${d.year}-${d.month}-${d.day}'),
+                  margin: const EdgeInsets.fromLTRB(10, 5, 10, 5),
+                  elevation: 0,
+                  clipBehavior: Clip.antiAlias,
+                  shape: _outlined(context),
+                  child: Column(
+                    children: [
+                      Container(
+                        color: cs.surfaceContainerHighest,
+                        padding: const EdgeInsets.fromLTRB(14, 7, 14, 7),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                dayLabel(d),
+                                style: Theme.of(context).textTheme.titleSmall,
+                              ),
+                            ),
+                            Text(
+                              money(net),
                               style: Theme.of(context).textTheme.titleSmall,
                             ),
-                          ),
-                          Text(
-                            money(net),
-                            style: Theme.of(context).textTheme.titleSmall,
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                    for (final t in list) TxTile(tx: t),
-                  ],
+                      for (final t in list) ...[
+                        Divider(height: 1, thickness: 1, color: line),
+                        TxTile(tx: t),
+                      ],
+                    ],
+                  ),
                 );
               },
             ),
@@ -298,6 +312,14 @@ class _RecentNotes extends StatelessWidget {
     );
   }
 }
+
+/// Visible outline for the cards on this page, so rows and totals stand out.
+ShapeBorder _outlined(BuildContext context) => RoundedRectangleBorder(
+  borderRadius: BorderRadius.circular(12),
+  side: BorderSide(
+    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.45),
+  ),
+);
 
 class _Stat extends StatelessWidget {
   final String label;

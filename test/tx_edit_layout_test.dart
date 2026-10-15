@@ -336,6 +336,43 @@ void main() {
       });
     }
 
+    for (final p in phones) {
+      testWidgets('no empty gap between the tags and the note while typing: ${p.$1}', (t) async {
+        await _pump(t, p.$2, top: p.$3, bottom: p.$4);
+        await _toNote(t);
+        t.view.viewInsets = const FakeViewPadding(bottom: 300);
+        addTearDown(t.view.resetViewInsets);
+        await t.pumpAndSettle();
+        expect(tester(t), isNull);
+        // the note keeps focus when the keyboard opens (its layout is not rebuilt)
+        expect(t.widget<TextField>(_noteField).focusNode!.hasFocus, isTrue);
+        // lowest tag ("Other" is the last one) sits right above the note row
+        final gap = t.getRect(_noteField).top - t.getRect(find.text('Other')).bottom;
+        expect(gap, lessThanOrEqualTo(32), reason: 'blank space above the note');
+        expect(gap, greaterThanOrEqualTo(0));
+        // everything is still reachable above the keyboard
+        final keyboardTop = p.$2.height - 300;
+        expect(t.getRect(find.text('Save')).bottom, lessThanOrEqualTo(keyboardTop));
+        for (final name in _defaultExpense) {
+          expect(find.text(name), findsOneWidget, reason: name);
+        }
+      });
+    }
+
+    testWidgets('transfer type works with the keyboard open too', (t) async {
+      await _pump(t, const Size(360, 640));
+      await t.tap(find.text('Transfer'));
+      await t.pumpAndSettle();
+      await _toNote(t, '75');
+      t.view.viewInsets = const FakeViewPadding(bottom: 300);
+      addTearDown(t.view.resetViewInsets);
+      await t.pumpAndSettle();
+      expect(tester(t), isNull);
+      expect(t.widget<TextField>(_noteField).focusNode!.hasFocus, isTrue);
+      expect(find.text('Moves money between your accounts'), findsOneWidget);
+      expect(t.getRect(find.text('Save')).bottom, lessThanOrEqualTo(640 - 300));
+    });
+
     testWidgets('typed notes are kept and Save is still tappable above the keyboard', (t) async {
       final repo = await _pump(t, const Size(393, 851));
       await _toNote(t, '40');

@@ -25,6 +25,10 @@ class AmountPad extends StatelessWidget {
     required this.onToggleCalculator,
   });
 
+  /// Total height of the pad for the given key height (header + rows + padding).
+  static double heightFor(double rowHeight, bool calculator) =>
+      34 + (calculator ? 5 : 4) * rowHeight + 6;
+
   Widget _key(
     BuildContext context, {
     required String id,

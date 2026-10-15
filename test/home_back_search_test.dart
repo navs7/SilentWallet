@@ -117,6 +117,45 @@ void main() {
     });
   });
 
+  group('transaction list borders', () {
+    final day = DateTime.now();
+    final txs = [
+      sampleTx('1', DateTime(day.year, day.month, day.day, 9), note: 'Coffee', paise: 12000, categoryId: 'e0'),
+      sampleTx('2', DateTime(day.year, day.month, day.day, 13), note: 'Lunch', paise: 25000, categoryId: 'e0'),
+    ];
+
+    testWidgets('each day is an outlined card with dividers between the rows', (t) async {
+      await _pumpHome(t, txs: txs);
+      final card = find.byKey(Key('day-${day.year}-${day.month}-${day.day}'));
+      expect(card, findsOneWidget);
+      final shape = t.widget<Card>(card).shape as RoundedRectangleBorder;
+      expect(shape.side.width, greaterThan(0));
+      expect(shape.side.style, BorderStyle.solid);
+      expect(shape.side.color.a, greaterThan(0.2)); // visible, not transparent
+      // a divider above each of the 2 rows
+      expect(find.descendant(of: card, matching: find.byType(Divider)), findsNWidgets(2));
+      expect(find.descendant(of: card, matching: find.byType(TxTile)), findsNWidgets(2));
+    });
+
+    testWidgets('the totals card is outlined too', (t) async {
+      await _pumpHome(t, txs: txs);
+      final totals = find.ancestor(of: find.text('Income'), matching: find.byType(Card)).first;
+      final shape = t.widget<Card>(totals).shape as RoundedRectangleBorder;
+      expect(shape.side.width, greaterThan(0));
+    });
+
+    testWidgets('search results are grouped in the same bordered cards', (t) async {
+      await _pumpHome(t, txs: txs);
+      await t.tap(find.byTooltip('Search'));
+      await t.pumpAndSettle();
+      await t.enterText(find.byType(TextField), 'coffee');
+      await t.pumpAndSettle();
+      final card = find.byKey(Key('day-${day.year}-${day.month}-${day.day}'));
+      expect(card, findsOneWidget);
+      expect(find.descendant(of: card, matching: find.byType(TxTile)), findsOneWidget);
+    });
+  });
+
   group('Transactions tab and list icons', () {
     final txs = [sampleTx('1', thisMonth, note: 'Coffee', paise: 12000, categoryId: 'e0')];
     Finder navItem(String label) =>
