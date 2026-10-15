@@ -37,11 +37,7 @@ Future<Uint8List> encryptBytes(List<int> plain, List<int> key) async {
 }
 
 Future<Uint8List> decryptBytes(List<int> data, List<int> key) async {
-  final box = SecretBox.fromConcatenation(
-    data,
-    nonceLength: 12,
-    macLength: 16,
-  );
+  final box = SecretBox.fromConcatenation(data, nonceLength: 12, macLength: 16);
   return Uint8List.fromList(await _aes.decrypt(box, secretKey: SecretKey(key)));
 }
 

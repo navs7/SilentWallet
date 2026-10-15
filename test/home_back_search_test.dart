@@ -1,0 +1,206 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:silentwallet/core/models.dart';
+import 'package:silentwallet/core/repo.dart';
+import 'package:silentwallet/screens/back_guard.dart';
+import 'package:silentwallet/screens/home.dart';
+import 'package:silentwallet/services/lock.dart';
+import 'package:silentwallet/services/settings.dart';
+import 'package:silentwallet/theme.dart';
+
+import 'test_support.dart';
+
+/// Records the app-exit request instead of really closing the test.
+class _Exit {
+  int calls = 0;
+}
+
+Future<_Exit> _mockSystemExit(WidgetTester t) async {
+  final exit = _Exit();
+  t.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+    if (call.method == 'SystemNavigator.pop') exit.calls++;
+    return null;
+  });
+  addTearDown(() => t.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, null));
+  return exit;
+}
+
+Future<void> _back(WidgetTester t) async {
+  await t.binding.handlePopRoute();
+  await t.pumpAndSettle();
+}
+
+int _tab(WidgetTester t) => t.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex;
+
+Future<void> _pumpHome(WidgetTester t, {List<Tx> txs = const []}) async {
+  SharedPreferences.setMockInitialValues({});
+  final settings = await Settings.load();
+  final repo = FakeRepo(txs: txs)
+    ..accounts = sampleAccounts()
+    ..categories = sampleCategories()
+    ..hasData = txs.isNotEmpty;
+  t.view.devicePixelRatio = 1.0;
+  t.view.physicalSize = const Size(393, 851);
+  addTearDown(t.view.resetPhysicalSize);
+  addTearDown(t.view.resetDevicePixelRatio);
+  await t.pumpWidget(MultiProvider(
+    providers: [
+      ChangeNotifierProvider<Settings>.value(value: settings),
+      ChangeNotifierProvider<Repo>.value(value: repo),
+      ChangeNotifierProvider<LockController>.value(value: LockController(settings)),
+    ],
+    child: MaterialApp(
+      theme: buildTheme(Brightness.light),
+      builder: compactText,
+      home: const HomeScreen(),
+    ),
+  ));
+  await t.pumpAndSettle();
+}
+
+void main() {
+  final now = DateTime.now();
+  final thisMonth = DateTime(now.year, now.month, 5);
+  final longAgo = DateTime(now.year - 1, 3, 12);
+
+  group('search covers all dates and more than notes', () {
+    final txs = [
+      sampleTx('1', thisMonth, note: 'Coffee', paise: 12000, categoryId: 'e0'),
+      sampleTx('2', longAgo, note: 'Zomato dinner', paise: 45050, categoryId: 'e0'),
+      sampleTx('3', longAgo, note: 'Weekly shop', paise: 99900, categoryId: 'e1', accountId: 'a2'),
+    ];
+
+    testWidgets('finds a note from another month / year', (t) async {
+      await _pumpHome(t, txs: txs);
+      expect(find.textContaining('Zomato dinner'), findsNothing); // not in this month's list
+      await t.tap(find.byTooltip('Search'));
+      await t.pumpAndSettle();
+      await t.enterText(find.byType(TextField), 'zomato');
+      await t.pumpAndSettle();
+      expect(find.textContaining('Zomato dinner'), findsOneWidget);
+      expect(find.textContaining('Coffee'), findsNothing);
+      expect(find.text('1 result across all dates'), findsOneWidget);
+    });
+
+    testWidgets('also matches category, account and amount', (t) async {
+      await _pumpHome(t, txs: txs);
+      await t.tap(find.byTooltip('Search'));
+      await t.pumpAndSettle();
+      Future<void> search(String q) async {
+        await t.enterText(find.byType(TextField), q);
+        await t.pumpAndSettle();
+      }
+
+      await search('groceries'); // category
+      expect(find.textContaining('Weekly shop'), findsOneWidget);
+      await search('hdfc'); // account
+      expect(find.textContaining('Weekly shop'), findsOneWidget);
+      await search('450.50'); // amount
+      expect(find.textContaining('Zomato dinner'), findsOneWidget);
+      await search('no such thing');
+      expect(find.textContaining('No transactions match'), findsOneWidget);
+    });
+
+    testWidgets('empty search box offers recent notes to tap', (t) async {
+      await _pumpHome(t, txs: txs);
+      await t.tap(find.byTooltip('Search'));
+      await t.pumpAndSettle();
+      expect(find.text('Recent notes'), findsOneWidget);
+      await t.tap(find.widgetWithText(ActionChip, 'Zomato dinner'));
+      await t.pumpAndSettle();
+      expect(t.widget<TextField>(find.byType(TextField)).controller!.text, 'Zomato dinner');
+      expect(find.text('1 result across all dates'), findsOneWidget);
+    });
+  });
+
+  group('back gesture', () {
+    testWidgets('closes the search box instead of leaving the app', (t) async {
+      final exit = await _mockSystemExit(t);
+      await _pumpHome(t);
+      await t.tap(find.byTooltip('Search'));
+      await t.pumpAndSettle();
+      expect(find.byType(TextField), findsOneWidget);
+      await _back(t);
+      expect(find.byType(TextField), findsNothing); // search closed
+      expect(find.byTooltip('Search'), findsOneWidget); // normal Transactions header
+      expect(find.text('Press back again to exit'), findsNothing);
+      expect(exit.calls, 0);
+      expect(_tab(t), 0);
+    });
+
+    testWidgets('closing search clears the typed text', (t) async {
+      await _mockSystemExit(t);
+      await _pumpHome(t, txs: [sampleTx('1', DateTime.now(), note: 'Coffee')]);
+      await t.tap(find.byTooltip('Search'));
+      await t.pumpAndSettle();
+      await t.enterText(find.byType(TextField), 'coffee');
+      await t.pumpAndSettle();
+      await _back(t);
+      await t.tap(find.byTooltip('Search'));
+      await t.pumpAndSettle();
+      expect(t.widget<TextField>(find.byType(TextField)).controller!.text, isEmpty);
+    });
+
+    testWidgets('from another tab goes back to Transactions', (t) async {
+      final exit = await _mockSystemExit(t);
+      await _pumpHome(t);
+      await t.tap(find.text('Reports'));
+      await t.pumpAndSettle();
+      expect(_tab(t), 1);
+      await _back(t);
+      expect(_tab(t), 0);
+      expect(exit.calls, 0);
+      await t.tap(find.text('Accounts'));
+      await t.pumpAndSettle();
+      await _back(t);
+      expect(_tab(t), 0);
+      expect(exit.calls, 0);
+    });
+
+    testWidgets('on Transactions it takes two back presses to exit', (t) async {
+      final exit = await _mockSystemExit(t);
+      await _pumpHome(t);
+      await _back(t);
+      expect(find.text('Press back again to exit'), findsOneWidget);
+      expect(exit.calls, 0);
+      await _back(t);
+      expect(exit.calls, 1);
+    });
+
+    testWidgets('a handled back resets the double-press timer', (t) async {
+      final exit = await _mockSystemExit(t);
+      await _pumpHome(t);
+      await _back(t); // 1st press: toast
+      await t.tap(find.byTooltip('Search'));
+      await t.pumpAndSettle();
+      await _back(t); // closes search
+      await _back(t); // starts the double-press again, must NOT exit
+      expect(exit.calls, 0);
+      expect(find.text('Press back again to exit'), findsOneWidget);
+    });
+  });
+
+  group('BackGuard', () {
+    testWidgets('a second press after the window expires does not exit', (t) async {
+      var exited = 0;
+      await t.pumpWidget(MaterialApp(
+        home: BackGuard(
+          window: const Duration(milliseconds: 100),
+          onBack: () => false,
+          onExit: () => exited++,
+          child: const Scaffold(body: Text('page')),
+        ),
+      ));
+      await t.binding.handlePopRoute();
+      await t.pumpAndSettle();
+      await t.runAsync(() => Future.delayed(const Duration(milliseconds: 250)));
+      await t.binding.handlePopRoute();
+      await t.pumpAndSettle();
+      expect(exited, 0);
+      expect(find.text('Press back again to exit'), findsOneWidget);
+    });
+  });
+}

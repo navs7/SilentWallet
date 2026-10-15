@@ -9,6 +9,7 @@ import 'package:uuid/uuid.dart';
 
 import 'crypto.dart';
 import 'models.dart';
+import 'search.dart';
 
 const _uuid = Uuid();
 String newId() => _uuid.v4();
@@ -40,24 +41,38 @@ class Repo extends ChangeNotifier {
     r.db = await openDatabase(
       p.join(dir.path, 'silentwallet.db'),
       password: dbKey, // SQLCipher: whole database file is AES-256 encrypted
-      version: 1,
+      version: 2,
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute(
+            'ALTER TABLE accounts ADD COLUMN is_default INTEGER NOT NULL DEFAULT 0',
+          );
+        }
+      },
       onCreate: (db, v) async {
         await db.execute('''CREATE TABLE accounts(
           id TEXT PRIMARY KEY, name TEXT NOT NULL, type TEXT NOT NULL,
-          opening_balance INTEGER NOT NULL DEFAULT 0, archived INTEGER NOT NULL DEFAULT 0)''');
-        await db.execute('''CREATE TABLE categories(
+          opening_balance INTEGER NOT NULL DEFAULT 0, archived INTEGER NOT NULL DEFAULT 0,
+          is_default INTEGER NOT NULL DEFAULT 0)''');
+        await db.execute(
+          '''CREATE TABLE categories(
           id TEXT PRIMARY KEY, name TEXT NOT NULL, icon TEXT NOT NULL,
-          color INTEGER NOT NULL, kind TEXT NOT NULL, is_custom INTEGER NOT NULL DEFAULT 0)''');
-        await db.execute('''CREATE TABLE transactions(
+          color INTEGER NOT NULL, kind TEXT NOT NULL, is_custom INTEGER NOT NULL DEFAULT 0)''',
+        );
+        await db.execute(
+          '''CREATE TABLE transactions(
           id TEXT PRIMARY KEY, type TEXT NOT NULL, amount INTEGER NOT NULL,
           account_id TEXT NOT NULL, to_account_id TEXT, category_id TEXT,
-          note TEXT, date INTEGER NOT NULL, receipt TEXT, recurring_id TEXT)''');
+          note TEXT, date INTEGER NOT NULL, receipt TEXT, recurring_id TEXT)''',
+        );
         await db.execute('CREATE INDEX idx_tx_date ON transactions(date)');
-        await db.execute('''CREATE TABLE recurring(
+        await db.execute(
+          '''CREATE TABLE recurring(
           id TEXT PRIMARY KEY, title TEXT NOT NULL, type TEXT NOT NULL,
           amount INTEGER NOT NULL, account_id TEXT NOT NULL, category_id TEXT,
           frequency TEXT NOT NULL, next_due INTEGER NOT NULL,
-          anchor_day INTEGER NOT NULL, end_date INTEGER, active INTEGER NOT NULL DEFAULT 1)''');
+          anchor_day INTEGER NOT NULL, end_date INTEGER, active INTEGER NOT NULL DEFAULT 1)''',
+        );
         await _seed(db);
       },
     );
@@ -67,40 +82,77 @@ class Repo extends ChangeNotifier {
 
   static Future<void> _seed(Database db) async {
     final b = db.batch();
-    b.insert('accounts', Account(id: newId(), name: 'Cash', type: 'Cash').toMap());
+    b.insert(
+      'accounts',
+      Account(id: newId(), name: 'Cash', type: 'Cash', isDefault: true).toMap(),
+    );
     const exp = [
-      ('Food & Dining', 'restaurant'), ('Groceries', 'cart'), ('Shopping', 'bag'),
-      ('Transport', 'transport'), ('Fuel', 'fuel'), ('Rent & Home', 'home'),
-      ('Bills & Utilities', 'bolt'), ('Mobile & Internet', 'phone'),
-      ('Health', 'health'), ('Education', 'school'), ('Entertainment', 'movie'),
-      ('Travel', 'flight'), ('Gifts', 'gift'), ('Other', 'other'),
+      ('Food & Dining', 'restaurant'),
+      ('Groceries', 'cart'),
+      ('Shopping', 'bag'),
+      ('Transport', 'transport'),
+      ('Fuel', 'fuel'),
+      ('Rent & Home', 'home'),
+      ('Bills & Utilities', 'bolt'),
+      ('Mobile & Internet', 'phone'),
+      ('Health', 'health'),
+      ('Education', 'school'),
+      ('Entertainment', 'movie'),
+      ('Travel', 'flight'),
+      ('Gifts', 'gift'),
+      ('Other', 'other'),
     ];
     for (var i = 0; i < exp.length; i++) {
-      b.insert('categories', Category(
-        id: newId(), name: exp[i].$1, icon: exp[i].$2,
-        color: categoryColors[i % categoryColors.length], kind: TxType.expense,
-      ).toMap());
+      b.insert(
+        'categories',
+        Category(
+          id: newId(),
+          name: exp[i].$1,
+          icon: exp[i].$2,
+          color: categoryColors[i % categoryColors.length],
+          kind: TxType.expense,
+        ).toMap(),
+      );
     }
-    const inc = [('Salary', 'salary'), ('Business', 'business'),
-      ('Interest', 'savings'), ('Gifts', 'gift'), ('Other', 'other')];
+    const inc = [
+      ('Salary', 'salary'),
+      ('Business', 'business'),
+      ('Interest', 'savings'),
+      ('Gifts', 'gift'),
+      ('Other', 'other'),
+    ];
     for (var i = 0; i < inc.length; i++) {
-      b.insert('categories', Category(
-        id: newId(), name: inc[i].$1, icon: inc[i].$2,
-        color: categoryColors[(i * 2 + 7) % categoryColors.length], kind: TxType.income,
-      ).toMap());
+      b.insert(
+        'categories',
+        Category(
+          id: newId(),
+          name: inc[i].$1,
+          icon: inc[i].$2,
+          color: categoryColors[(i * 2 + 7) % categoryColors.length],
+          kind: TxType.income,
+        ).toMap(),
+      );
     }
     await b.commit(noResult: true);
   }
 
   Future<void> reload() async {
-    accounts = (await db.query('accounts', orderBy: 'name COLLATE NOCASE'))
-        .map(Account.fromMap).toList();
-    categories = (await db.query('categories', orderBy: 'name COLLATE NOCASE'))
-        .map(Category.fromMap).toList();
-    recurring = (await db.query('recurring', orderBy: 'next_due'))
-        .map(Recurring.fromMap).toList();
-    hasData = (Sqflite.firstIntValue(
-                await db.rawQuery('SELECT COUNT(*) FROM transactions')) ??
+    accounts = (await db.query(
+      'accounts',
+      orderBy: 'name COLLATE NOCASE',
+    )).map(Account.fromMap).toList();
+    categories = (await db.query(
+      'categories',
+      orderBy: 'name COLLATE NOCASE',
+    )).map(Category.fromMap).toList();
+    recurring = (await db.query(
+      'recurring',
+      orderBy: 'next_due',
+    )).map(Recurring.fromMap).toList();
+    hasData =
+        (Sqflite.firstIntValue(
+              await db.rawQuery('SELECT COUNT(*) FROM transactions'),
+            ) ??
             0) >
         0;
     notifyListeners();
@@ -122,16 +174,44 @@ class Repo extends ChangeNotifier {
 
   // ---------- Accounts ----------
   Future<void> saveAccount(Account a) async {
-    await db.insert('accounts', a.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
+    // An archived account can't be the default.
+    if (a.archived) a.isDefault = false;
+    await db.transaction((txn) async {
+      if (a.isDefault) {
+        // only one default at a time
+        await txn.update(
+          'accounts',
+          {'is_default': 0},
+          where: 'id != ?',
+          whereArgs: [a.id],
+        );
+      }
+      await txn.insert(
+        'accounts',
+        a.toMap(),
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    });
     await reload();
   }
 
   Future<bool> deleteAccount(String id) async {
-    final used = Sqflite.firstIntValue(await db.rawQuery(
-        'SELECT COUNT(*) FROM transactions WHERE account_id=? OR to_account_id=?',
-        [id, id])) ?? 0;
-    final rec = Sqflite.firstIntValue(await db.rawQuery(
-        'SELECT COUNT(*) FROM recurring WHERE account_id=?', [id])) ?? 0;
+    final used =
+        Sqflite.firstIntValue(
+          await db.rawQuery(
+            'SELECT COUNT(*) FROM transactions WHERE account_id=? OR to_account_id=?',
+            [id, id],
+          ),
+        ) ??
+        0;
+    final rec =
+        Sqflite.firstIntValue(
+          await db.rawQuery(
+            'SELECT COUNT(*) FROM recurring WHERE account_id=?',
+            [id],
+          ),
+        ) ??
+        0;
     if (used > 0 || rec > 0) return false;
     await db.delete('accounts', where: 'id=?', whereArgs: [id]);
     await reload();
@@ -140,15 +220,31 @@ class Repo extends ChangeNotifier {
 
   // ---------- Categories ----------
   Future<void> saveCategory(Category c) async {
-    await db.insert('categories', c.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
+    await db.insert(
+      'categories',
+      c.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
     await reload();
   }
 
   Future<bool> deleteCategory(String id) async {
-    final used = Sqflite.firstIntValue(await db.rawQuery(
-        'SELECT COUNT(*) FROM transactions WHERE category_id=?', [id])) ?? 0;
-    final rec = Sqflite.firstIntValue(await db.rawQuery(
-        'SELECT COUNT(*) FROM recurring WHERE category_id=?', [id])) ?? 0;
+    final used =
+        Sqflite.firstIntValue(
+          await db.rawQuery(
+            'SELECT COUNT(*) FROM transactions WHERE category_id=?',
+            [id],
+          ),
+        ) ??
+        0;
+    final rec =
+        Sqflite.firstIntValue(
+          await db.rawQuery(
+            'SELECT COUNT(*) FROM recurring WHERE category_id=?',
+            [id],
+          ),
+        ) ??
+        0;
     if (used > 0 || rec > 0) return false;
     await db.delete('categories', where: 'id=?', whereArgs: [id]);
     await reload();
@@ -157,7 +253,11 @@ class Repo extends ChangeNotifier {
 
   // ---------- Transactions ----------
   Future<void> saveTx(Tx t) async {
-    await db.insert('transactions', t.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
+    await db.insert(
+      'transactions',
+      t.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
     hasData = true;
     notifyListeners();
   }
@@ -168,13 +268,23 @@ class Repo extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<List<Tx>> txBetween(DateTime from, DateTime to,
-      {String? accountId, String? categoryId, String? search}) async {
+  Future<List<Tx>> txBetween(
+    DateTime from,
+    DateTime to, {
+    String? accountId,
+    String? categoryId,
+    String? search,
+  }) async {
     final where = <String>['date >= ? AND date < ?'];
-    final args = <Object?>[from.millisecondsSinceEpoch, to.millisecondsSinceEpoch];
+    final args = <Object?>[
+      from.millisecondsSinceEpoch,
+      to.millisecondsSinceEpoch,
+    ];
     if (accountId != null) {
       where.add('(account_id = ? OR to_account_id = ?)');
-      args..add(accountId)..add(accountId);
+      args
+        ..add(accountId)
+        ..add(accountId);
     }
     if (categoryId != null) {
       where.add('category_id = ?');
@@ -184,19 +294,63 @@ class Repo extends ChangeNotifier {
       where.add('note LIKE ?');
       args.add('%${search.trim()}%');
     }
-    final rows = await db.query('transactions',
-        where: where.join(' AND '), whereArgs: args, orderBy: 'date DESC, rowid DESC');
+    final rows = await db.query(
+      'transactions',
+      where: where.join(' AND '),
+      whereArgs: args,
+      orderBy: 'date DESC, rowid DESC',
+    );
     return rows.map(Tx.fromMap).toList();
   }
 
-  Future<List<Tx>> allTx() async =>
-      (await db.query('transactions', orderBy: 'date DESC')).map(Tx.fromMap).toList();
+  /// Search across ALL dates: note, category, account name or amount.
+  Future<List<Tx>> search(String query, {int limit = 500}) async {
+    final out = <Tx>[];
+    for (final t in await allTx()) {
+      if (txMatches(
+        t,
+        query,
+        accountName: account(t.accountId)?.name,
+        toAccountName: account(t.toAccountId)?.name,
+        categoryName: category(t.categoryId)?.name,
+      )) {
+        out.add(t);
+        if (out.length >= limit) break;
+      }
+    }
+    return out;
+  }
+
+  /// Every distinct note used so far (for suggestions).
+  Future<List<NoteEntry>> noteHistory() async {
+    final rows = await db.query(
+      'transactions',
+      columns: ['note', 'category_id', 'date'],
+      where: "note IS NOT NULL AND TRIM(note) != ''",
+    );
+    return buildNoteHistory(
+      rows.map(
+        (r) => (
+          note: r['note'] as String,
+          categoryId: r['category_id'] as String?,
+          date: DateTime.fromMillisecondsSinceEpoch((r['date'] as num).toInt()),
+        ),
+      ),
+    );
+  }
+
+  Future<List<Tx>> allTx() async => (await db.query(
+    'transactions',
+    orderBy: 'date DESC',
+  )).map(Tx.fromMap).toList();
 
   /// Balance per account (paise) = opening + income - expense +/- transfers.
   Future<Map<String, int>> balances() async {
     final bal = {for (final a in accounts) a.id: a.openingBalance};
-    for (final r in await db.query('transactions',
-        columns: ['type', 'amount', 'account_id', 'to_account_id'])) {
+    for (final r in await db.query(
+      'transactions',
+      columns: ['type', 'amount', 'account_id', 'to_account_id'],
+    )) {
       final amt = (r['amount'] as num).toInt();
       final from = r['account_id'] as String;
       final to = r['to_account_id'] as String?;
@@ -215,7 +369,11 @@ class Repo extends ChangeNotifier {
 
   // ---------- Recurring ----------
   Future<void> saveRecurring(Recurring r) async {
-    await db.insert('recurring', r.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
+    await db.insert(
+      'recurring',
+      r.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
     await reload();
   }
 
@@ -238,16 +396,33 @@ class Repo extends ChangeNotifier {
           changed = true;
           break;
         }
-        await db.insert('transactions', Tx(
-          id: newId(), type: r.type, amount: r.amount, accountId: r.accountId,
-          categoryId: r.categoryId, note: r.title, date: r.nextDue, recurringId: r.id,
-        ).toMap());
+        await db.insert(
+          'transactions',
+          Tx(
+            id: newId(),
+            type: r.type,
+            amount: r.amount,
+            accountId: r.accountId,
+            categoryId: r.categoryId,
+            note: r.title,
+            date: r.nextDue,
+            recurringId: r.id,
+          ).toMap(),
+        );
         created++;
-        r.nextDue = nextOccurrence(r.nextDue, r.frequency, anchorDay: r.anchorDay);
+        r.nextDue = nextOccurrence(
+          r.nextDue,
+          r.frequency,
+          anchorDay: r.anchorDay,
+        );
         changed = true;
       }
       if (changed) {
-        await db.insert('recurring', r.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
+        await db.insert(
+          'recurring',
+          r.toMap(),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
       }
     }
     if (created > 0) await reload();
@@ -275,11 +450,11 @@ class Repo extends ChangeNotifier {
 
   // ---------- Backup support ----------
   Future<Map<String, Object?>> dumpAll() async => {
-        'accounts': await db.query('accounts'),
-        'categories': await db.query('categories'),
-        'transactions': await db.query('transactions'),
-        'recurring': await db.query('recurring'),
-      };
+    'accounts': await db.query('accounts'),
+    'categories': await db.query('categories'),
+    'transactions': await db.query('transactions'),
+    'recurring': await db.query('recurring'),
+  };
 
   Future<void> restoreAll(Map<String, dynamic> data) async {
     await db.transaction((txn) async {
@@ -293,8 +468,10 @@ class Repo extends ChangeNotifier {
       }
     });
     // Remove receipt files not referenced any more.
-    final keep = (await db.query('transactions', columns: ['receipt']))
-        .map((r) => r['receipt']).whereType<String>().toSet();
+    final keep = (await db.query(
+      'transactions',
+      columns: ['receipt'],
+    )).map((r) => r['receipt']).whereType<String>().toSet();
     for (final f in _receiptDir.listSync().whereType<File>()) {
       if (!keep.contains(p.basename(f.path))) await f.delete();
     }

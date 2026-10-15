@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 
 import '../core/models.dart';
 import '../core/repo.dart';
+import '../core/search.dart';
 import '../services/lock.dart';
 import '../util.dart';
 
@@ -26,6 +27,8 @@ class _TxEditScreenState extends State<TxEditScreen> {
   late TxType _type;
   String _amount = '';
   final _noteCtl = TextEditingController();
+  final _noteFocus = FocusNode();
+  List<NoteEntry> _history = []; // notes used before, for suggestions
   String? _categoryId;
   String? _accountId;
   String? _toAccountId;
@@ -54,8 +57,11 @@ class _TxEditScreenState extends State<TxEditScreen> {
     }
     _noteCtl.text = t?.note ?? '';
     _categoryId = t?.categoryId;
-    final active = repo.accounts.where((a) => !a.archived).toList();
-    _accountId = t?.accountId ?? (active.isNotEmpty ? active.first.id : null);
+    // New transactions start on the account marked as default.
+    _accountId = t?.accountId ?? defaultAccountId(repo.accounts);
+    repo.noteHistory().then((h) {
+      if (mounted) setState(() => _history = h);
+    });
     _toAccountId = t?.toAccountId;
     _date = t?.date ?? DateTime.now();
     _receiptName = t?.receipt;
@@ -69,6 +75,7 @@ class _TxEditScreenState extends State<TxEditScreen> {
   @override
   void dispose() {
     _noteCtl.dispose();
+    _noteFocus.dispose();
     super.dispose();
   }
 
@@ -282,6 +289,106 @@ class _TxEditScreenState extends State<TxEditScreen> {
     );
   }
 
+  /// Note box with suggestions from earlier notes (shown above the field).
+  Widget _noteField(List<Category> cats) {
+    final cs = Theme.of(context).colorScheme;
+    return RawAutocomplete<NoteEntry>(
+      textEditingController: _noteCtl,
+      focusNode: _noteFocus,
+      optionsViewOpenDirection: OptionsViewOpenDirection.up,
+      displayStringForOption: (e) => e.note,
+      optionsBuilder: (v) => rankNotes(_history, v.text),
+      onSelected: (e) {
+        // Re-use the category this note had last time, if none is chosen yet.
+        if (_categoryId == null &&
+            _type != TxType.transfer &&
+            e.categoryId != null &&
+            cats.any((c) => c.id == e.categoryId)) {
+          setState(() => _categoryId = e.categoryId);
+        }
+      },
+      fieldViewBuilder: (context, ctl, focus, onSubmit) => SizedBox(
+        height: 42,
+        child: TextField(
+          controller: ctl,
+          focusNode: focus,
+          maxLines: 1,
+          textInputAction: TextInputAction.done,
+          textCapitalization: TextCapitalization.sentences,
+          style: const TextStyle(fontSize: 15),
+          onSubmitted: (_) => focus.unfocus(),
+          onTapOutside: (_) => focus.unfocus(),
+          decoration: const InputDecoration(
+            hintText: 'Add a note',
+            prefixIcon: Icon(Icons.notes, size: 18),
+            prefixIconConstraints: BoxConstraints(minWidth: 34, minHeight: 34),
+            border: OutlineInputBorder(),
+            contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          ),
+        ),
+      ),
+      optionsViewBuilder: (context, onSelected, options) => Align(
+        alignment: Alignment.bottomLeft,
+        child: Material(
+          elevation: 4,
+          color: cs.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(10),
+          clipBehavior: Clip.antiAlias,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: 6 * 40.0,
+              maxWidth: MediaQuery.sizeOf(context).width - 24,
+            ),
+            child: ListView.builder(
+              padding: EdgeInsets.zero,
+              shrinkWrap: true,
+              itemCount: options.length,
+              itemBuilder: (context, i) {
+                final e = options.elementAt(i);
+                return InkWell(
+                  onTap: () => onSelected(e),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.history,
+                          size: 16,
+                          color: cs.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            e.note,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (e.count > 1) ...[
+                          const SizedBox(width: 8),
+                          Text(
+                            'x${e.count}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: cs.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _padKey(String k, {IconData? icon}) {
     final cs = Theme.of(context).colorScheme;
     return Expanded(
@@ -334,9 +441,13 @@ class _TxEditScreenState extends State<TxEditScreen> {
   Widget build(BuildContext context) {
     final repo = context.watch<Repo>();
     final cs = Theme.of(context).colorScheme;
-    final accounts = repo.accounts
-        .where((a) => !a.archived || a.id == _accountId || a.id == _toAccountId)
-        .toList();
+    final accounts = accountsDefaultFirst(
+      repo.accounts
+          .where(
+            (a) => !a.archived || a.id == _accountId || a.id == _toAccountId,
+          )
+          .toList(),
+    );
     final cats = repo.categories
         .where(
           (c) =>
@@ -503,34 +614,7 @@ class _TxEditScreenState extends State<TxEditScreen> {
                       const SizedBox(height: 6),
                       Row(
                         children: [
-                          Expanded(
-                            child: SizedBox(
-                              height: 42,
-                              child: TextField(
-                                controller: _noteCtl,
-                                maxLines: 1,
-                                textInputAction: TextInputAction.done,
-                                textCapitalization:
-                                    TextCapitalization.sentences,
-                                style: const TextStyle(fontSize: 15),
-                                onTapOutside: (_) =>
-                                    FocusScope.of(context).unfocus(),
-                                decoration: const InputDecoration(
-                                  hintText: 'Add a note',
-                                  prefixIcon: Icon(Icons.notes, size: 18),
-                                  prefixIconConstraints: BoxConstraints(
-                                    minWidth: 34,
-                                    minHeight: 34,
-                                  ),
-                                  border: OutlineInputBorder(),
-                                  contentPadding: EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 8,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
+                          Expanded(child: _noteField(cats)),
                           const SizedBox(width: 6),
                           OutlinedButton.icon(
                             onPressed: _pickDate,

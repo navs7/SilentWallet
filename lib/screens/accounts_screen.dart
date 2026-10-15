@@ -34,8 +34,18 @@ class AccountsScreen extends StatelessWidget {
           for (final a in repo.accounts)
             ListTile(
               leading: CircleAvatar(radius: 16, child: Icon(accountTypes[a.type] ?? Icons.folder, size: 18)),
-              title: Text(a.name + (a.archived ? ' (archived)' : '')),
-              subtitle: Text(a.type),
+              title: Text.rich(TextSpan(children: [
+                TextSpan(text: a.name + (a.archived ? ' (archived)' : '')),
+                if (a.isDefault)
+                  const WidgetSpan(
+                    alignment: PlaceholderAlignment.middle,
+                    child: Padding(
+                      padding: EdgeInsets.only(left: 4),
+                      child: Icon(Icons.star, size: 16, color: Colors.amber),
+                    ),
+                  ),
+              ])),
+              subtitle: Text(a.isDefault ? '${a.type} · Default' : a.type),
               trailing: Text(money(bal[a.id] ?? a.openingBalance),
                   style: const TextStyle(fontWeight: FontWeight.w600)),
               onTap: () => showAccountEditor(context, a),
@@ -61,6 +71,7 @@ Future<void> showAccountEditor(BuildContext context, Account? existing) async {
       text: existing == null ? '' : (existing.openingBalance / 100).toStringAsFixed(2));
   var type = existing?.type ?? 'Bank';
   var archived = existing?.archived ?? false;
+  var isDefault = existing?.isDefault ?? false;
   await showModalBottomSheet(
     context: context,
     isScrollControlled: true,
@@ -85,12 +96,22 @@ Future<void> showAccountEditor(BuildContext context, Account? existing) async {
             keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
             decoration: const InputDecoration(labelText: 'Opening balance', prefixText: '₹ '),
           ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Default account'),
+            subtitle: const Text('Pre-selected when adding a transaction'),
+            value: isDefault && !archived,
+            onChanged: archived ? null : (v) => set(() => isDefault = v),
+          ),
           if (existing != null)
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Archived (hide from new entries)'),
               value: archived,
-              onChanged: (v) => set(() => archived = v),
+              onChanged: (v) => set(() {
+                archived = v;
+                if (v) isDefault = false;
+              }),
             ),
           const SizedBox(height: 12),
           Row(children: [
@@ -116,6 +137,7 @@ Future<void> showAccountEditor(BuildContext context, Account? existing) async {
                   type: type,
                   openingBalance: ob.round(),
                   archived: archived,
+                  isDefault: isDefault && !archived,
                 ));
                 if (ctx.mounted) Navigator.pop(ctx);
               },

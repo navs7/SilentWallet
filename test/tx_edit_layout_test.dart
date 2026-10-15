@@ -12,29 +12,23 @@ import 'package:silentwallet/services/lock.dart';
 import 'package:silentwallet/services/settings.dart';
 import 'package:silentwallet/theme.dart';
 
-const _defaultExpense = [
-  'Food & Dining', 'Groceries', 'Shopping', 'Transport', 'Fuel', 'Rent & Home',
-  'Bills & Utilities', 'Mobile & Internet', 'Health', 'Education',
-  'Entertainment', 'Travel', 'Gifts', 'Other',
-];
+import 'test_support.dart';
 
-Repo _repo({int extraCustom = 0}) {
-  final r = Repo();
-  r.accounts = [
-    Account(id: 'a1', name: 'Cash', type: 'Cash'),
-    Account(id: 'a2', name: 'HDFC Savings', type: 'Bank'),
-  ];
-  r.categories = [
-    for (var i = 0; i < _defaultExpense.length; i++)
-      Category(id: 'e$i', name: _defaultExpense[i], icon: 'other', color: 0xFF64B5F6, kind: TxType.expense),
-    for (var i = 0; i < extraCustom; i++)
-      Category(id: 'x$i', name: 'Custom tag $i', icon: 'other', color: 0xFF81C784, kind: TxType.expense, isCustom: true),
-    Category(id: 'i1', name: 'Salary', icon: 'salary', color: 0xFF81C784, kind: TxType.income),
-  ];
+const _defaultExpense = defaultExpenseNames;
+
+FakeRepo _repo({int extraCustom = 0, List<Account>? accounts, List<Tx> txs = const []}) {
+  final r = FakeRepo(txs: txs);
+  r.accounts = accounts ?? sampleAccounts();
+  r.categories = sampleCategories(extraCustom: extraCustom);
   return r;
 }
 
-Future<void> _pump(WidgetTester t, Size size, {double top = 28, double bottom = 24, int extra = 0}) async {
+Future<void> _pump(WidgetTester t, Size size,
+    {double top = 28,
+    double bottom = 24,
+    int extra = 0,
+    List<Account>? accounts,
+    List<Tx> txs = const []}) async {
   SharedPreferences.setMockInitialValues({});
   final settings = await Settings.load();
   final lock = LockController(settings);
@@ -50,7 +44,8 @@ Future<void> _pump(WidgetTester t, Size size, {double top = 28, double bottom = 
   });
   await t.pumpWidget(MultiProvider(
     providers: [
-      ChangeNotifierProvider<Repo>.value(value: _repo(extraCustom: extra)),
+      ChangeNotifierProvider<Repo>.value(
+          value: _repo(extraCustom: extra, accounts: accounts, txs: txs)),
       ChangeNotifierProvider<LockController>.value(value: lock),
     ],
     child: MaterialApp(
@@ -149,6 +144,60 @@ void main() {
     await t.pumpAndSettle();
     expect(_pageScrollExtent(t), 0);
     expect(find.text('Dinner with friends'), findsOneWidget);
+  });
+
+  testWidgets('note suggestions come from earlier notes and appear above the field', (t) async {
+    final txs = [
+      sampleTx('1', DateTime(2026, 3, 1), note: 'Zomato dinner', categoryId: 'e0'),
+      sampleTx('2', DateTime(2026, 3, 2), note: 'Zomato dinner', categoryId: 'e0'),
+      sampleTx('3', DateTime(2026, 3, 3), note: 'Zomato lunch', categoryId: 'e0'),
+      sampleTx('4', DateTime(2026, 3, 4), note: 'Uber ride', categoryId: 'e3'),
+    ];
+    await _pump(t, const Size(393, 851), txs: txs);
+    t.view.viewInsets = const FakeViewPadding(bottom: 320);
+    addTearDown(t.view.resetViewInsets);
+    // focusing the empty field lists recent notes
+    await t.tap(find.byType(TextField));
+    await t.pumpAndSettle();
+    expect(tester(t), isNull);
+    expect(find.text('Uber ride'), findsOneWidget);
+    // typing narrows the list; most used first
+    await t.enterText(find.byType(TextField), 'zom');
+    await t.pumpAndSettle();
+    expect(find.text('Zomato dinner'), findsOneWidget);
+    expect(find.text('Zomato lunch'), findsOneWidget);
+    expect(find.text('Uber ride'), findsNothing);
+    expect(t.getRect(find.text('Zomato dinner')).bottom,
+        lessThan(t.getRect(find.byType(TextField)).top)); // above the field
+    // choosing one fills the note
+    await t.tap(find.text('Zomato dinner'));
+    await t.pumpAndSettle();
+    final field = t.widget<TextField>(find.byType(TextField));
+    expect(field.controller!.text, 'Zomato dinner');
+    expect(find.text('Zomato lunch'), findsNothing); // list closed
+  });
+
+  testWidgets('no suggestions when there is no history yet', (t) async {
+    await _pump(t, const Size(393, 851));
+    await t.tap(find.byType(TextField));
+    await t.pumpAndSettle();
+    expect(find.byIcon(Icons.history), findsNothing);
+  });
+
+  testWidgets('new transactions start on the default account', (t) async {
+    final accounts = [
+      Account(id: 'a0', name: 'Axis', type: 'Bank'), // sorts first alphabetically
+      Account(id: 'a1', name: 'Cash', type: 'Cash', isDefault: true),
+    ];
+    await _pump(t, const Size(393, 851), accounts: accounts);
+    final dd = t.widget<DropdownButtonFormField<String>>(find.byType(DropdownButtonFormField<String>));
+    expect(dd.initialValue, 'a1');
+  });
+
+  testWidgets('without a default the first account is used', (t) async {
+    await _pump(t, const Size(393, 851));
+    final dd = t.widget<DropdownButtonFormField<String>>(find.byType(DropdownButtonFormField<String>));
+    expect(dd.initialValue, 'a1'); // Cash, first in the sample list
   });
 
   testWidgets('number pad builds the amount with two decimals max', (t) async {
