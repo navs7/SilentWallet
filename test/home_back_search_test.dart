@@ -117,42 +117,84 @@ void main() {
     });
   });
 
-  group('transaction list borders', () {
+  group('transaction list design', () {
     final day = DateTime.now();
+    final noon = DateTime(day.year, day.month, day.day, 12);
     final txs = [
-      sampleTx('1', DateTime(day.year, day.month, day.day, 9), note: 'Coffee', paise: 12000, categoryId: 'e0'),
-      sampleTx('2', DateTime(day.year, day.month, day.day, 13), note: 'Lunch', paise: 25000, categoryId: 'e0'),
+      sampleTx('1', noon, note: 'Coffee', paise: 12000, categoryId: 'e0'),
+      sampleTx('2', noon.add(const Duration(hours: 1)), note: 'Lunch', paise: 25000, categoryId: 'e0'),
+      Tx(
+        id: '3',
+        type: TxType.income,
+        amount: 500000,
+        accountId: 'a1',
+        categoryId: 'i1',
+        note: 'Salary',
+        date: noon.add(const Duration(hours: 2)),
+      ),
     ];
 
-    testWidgets('each day is an outlined card with dividers between the rows', (t) async {
+    ColorScheme scheme(WidgetTester t) => Theme.of(t.element(find.byType(HomeScreen))).colorScheme;
+
+    testWidgets('every transaction is its own soft, rounded tile (no outline)', (t) async {
       await _pumpHome(t, txs: txs);
-      final card = find.byKey(Key('day-${day.year}-${day.month}-${day.day}'));
-      expect(card, findsOneWidget);
-      final shape = t.widget<Card>(card).shape as RoundedRectangleBorder;
-      expect(shape.side.width, greaterThan(0));
-      expect(shape.side.style, BorderStyle.solid);
-      expect(shape.side.color.a, greaterThan(0.2)); // visible, not transparent
-      // a divider above each of the 2 rows
-      expect(find.descendant(of: card, matching: find.byType(Divider)), findsNWidgets(2));
-      expect(find.descendant(of: card, matching: find.byType(TxTile)), findsNWidgets(2));
+      for (final id in ['1', '2', '3']) {
+        final card = find.byKey(Key('tx-card-$id'));
+        expect(card, findsOneWidget, reason: 'tx $id');
+        final w = t.widget<Card>(card);
+        expect(w.color, scheme(t).surfaceContainer);
+        final shape = w.shape as RoundedRectangleBorder;
+        expect(shape.side, BorderSide.none); // no border line
+        expect(shape.borderRadius, isNot(BorderRadius.zero)); // rounded
+      }
     });
 
-    testWidgets('the totals card is outlined too', (t) async {
+    testWidgets('no divider lines or boxed day groups', (t) async {
       await _pumpHome(t, txs: txs);
-      final totals = find.ancestor(of: find.text('Income'), matching: find.byType(Card)).first;
-      final shape = t.widget<Card>(totals).shape as RoundedRectangleBorder;
-      expect(shape.side.width, greaterThan(0));
+      expect(find.byType(Divider), findsNothing);
+      expect(find.byKey(Key('day-${day.year}-${day.month}-${day.day}')), findsNothing);
     });
 
-    testWidgets('search results are grouped in the same bordered cards', (t) async {
+    testWidgets('each day has a plain header with its label and net total', (t) async {
+      await _pumpHome(t, txs: txs);
+      final header = find.byKey(Key('day-header-${day.year}-${day.month}-${day.day}'));
+      expect(header, findsOneWidget);
+      expect(find.descendant(of: header, matching: find.text('Today')), findsOneWidget);
+      // net = +5000 income - 120 - 250 expenses = 4630
+      expect(find.descendant(of: header, matching: find.textContaining('4,630.00')), findsOneWidget);
+      // the header is not boxed: no coloured background container
+      expect(find.descendant(of: header, matching: find.byType(Card)), findsNothing);
+    });
+
+    testWidgets('a thin edge in the amount colour marks expense vs income', (t) async {
+      await _pumpHome(t, txs: txs);
+      Color edge(String id) {
+        final box = t.widget<DecoratedBox>(find
+            .descendant(of: find.byKey(Key('tx-card-$id')), matching: find.byType(DecoratedBox))
+            .first);
+        return ((box.decoration as BoxDecoration).border as Border).left.color;
+      }
+
+      expect(edge('1'), Colors.red.shade400); // expense
+      expect(edge('3'), Colors.green.shade600); // income
+    });
+
+    testWidgets('the totals card is a soft tile too', (t) async {
+      await _pumpHome(t, txs: txs);
+      final totals = t.widget<Card>(find.ancestor(of: find.text('Income'), matching: find.byType(Card)).first);
+      expect(totals.color, scheme(t).surfaceContainer);
+      expect((totals.shape as RoundedRectangleBorder).side, BorderSide.none);
+    });
+
+    testWidgets('search results use the same tiles', (t) async {
       await _pumpHome(t, txs: txs);
       await t.tap(find.byTooltip('Search'));
       await t.pumpAndSettle();
       await t.enterText(find.byType(TextField), 'coffee');
       await t.pumpAndSettle();
-      final card = find.byKey(Key('day-${day.year}-${day.month}-${day.day}'));
-      expect(card, findsOneWidget);
-      expect(find.descendant(of: card, matching: find.byType(TxTile)), findsOneWidget);
+      expect(find.byKey(const Key('tx-card-1')), findsOneWidget);
+      expect(find.byKey(const Key('tx-card-2')), findsNothing);
+      expect(find.byType(Divider), findsNothing);
     });
   });
 

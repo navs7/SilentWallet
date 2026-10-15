@@ -169,7 +169,10 @@ class _TxListScreenState extends State<TxListScreen> {
                 child: Card(
                   margin: const EdgeInsets.fromLTRB(10, 4, 10, 4),
                   elevation: 0,
-                  shape: _outlined(context),
+                  color: Theme.of(context).colorScheme.surfaceContainer,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
@@ -224,40 +227,26 @@ class _TxListScreenState extends State<TxListScreen> {
                   if (t.type == TxType.income) net += t.amount;
                   if (t.type == TxType.expense) net -= t.amount;
                 }
-                final cs = Theme.of(context).colorScheme;
-                final line = cs.outline.withValues(alpha: 0.45);
-                return Card(
-                  key: Key('day-${d.year}-${d.month}-${d.day}'),
-                  margin: const EdgeInsets.fromLTRB(10, 5, 10, 5),
-                  elevation: 0,
-                  clipBehavior: Clip.antiAlias,
-                  shape: _outlined(context),
-                  child: Column(
-                    children: [
-                      Container(
-                        color: cs.surfaceContainerHighest,
-                        padding: const EdgeInsets.fromLTRB(14, 7, 14, 7),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                dayLabel(d),
-                                style: Theme.of(context).textTheme.titleSmall,
-                              ),
-                            ),
-                            Text(
-                              money(net),
-                              style: Theme.of(context).textTheme.titleSmall,
-                            ),
-                          ],
-                        ),
+                final headStyle = Theme.of(context).textTheme.titleSmall
+                    ?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    );
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      key: Key('day-header-${d.year}-${d.month}-${d.day}'),
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                      child: Row(
+                        children: [
+                          Expanded(child: Text(dayLabel(d), style: headStyle)),
+                          Text(money(net), style: headStyle),
+                        ],
                       ),
-                      for (final t in list) ...[
-                        Divider(height: 1, thickness: 1, color: line),
-                        TxTile(tx: t),
-                      ],
-                    ],
-                  ),
+                    ),
+                    for (final t in list) TxTile(tx: t),
+                  ],
                 );
               },
             ),
@@ -313,14 +302,6 @@ class _RecentNotes extends StatelessWidget {
   }
 }
 
-/// Visible outline for the cards on this page, so rows and totals stand out.
-ShapeBorder _outlined(BuildContext context) => RoundedRectangleBorder(
-  borderRadius: BorderRadius.circular(12),
-  side: BorderSide(
-    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.45),
-  ),
-);
-
 class _Stat extends StatelessWidget {
   final String label;
   final int paise;
@@ -369,59 +350,74 @@ class TxTile extends StatelessWidget {
       isTransfer ? '$acc → ${repo.account(tx.toAccountId)?.name ?? '?'}' : acc,
       if (tx.note.isNotEmpty) tx.note,
     ].join(' • ');
-    return ListTile(
-      leading: CircleAvatar(
-        radius: 16,
-        backgroundColor: isTransfer
-            ? Theme.of(context).colorScheme.primaryContainer
-            : Color(cat?.color ?? 0xFF90A4AE),
-        child: Icon(
-          isTransfer ? Icons.swap_horiz : (cat?.iconData ?? Icons.category),
-          size: kCategoryIconSize,
-          color: isTransfer
-              ? Theme.of(context).colorScheme.onPrimaryContainer
-              : Colors.white,
+    final cs = Theme.of(context).colorScheme;
+    return Card(
+      key: Key('tx-card-${tx.id}'),
+      elevation: 0,
+      color: cs.surfaceContainer,
+      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      child: DecoratedBox(
+        // a thin edge in the amount's colour: red expense, green income
+        decoration: BoxDecoration(
+          border: Border(left: BorderSide(color: color, width: 3.5)),
         ),
-      ),
-      title: Text(
-        title,
-        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-      ),
-      subtitle: Text(
-        subtitle,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          fontSize: 13,
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
-        ),
-      ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (tx.receipt != null)
-            const Padding(
-              padding: EdgeInsets.only(right: 6),
-              child: Icon(Icons.receipt, size: 18),
-            ),
-          if (tx.recurringId != null)
-            const Padding(
-              padding: EdgeInsets.only(right: 6),
-              child: Icon(Icons.repeat, size: 18),
-            ),
-          Text(
-            '$sign${money(tx.amount)}',
-            style: TextStyle(
-              color: color,
-              fontSize: 17,
-              fontWeight: FontWeight.w700,
+        child: ListTile(
+          leading: CircleAvatar(
+            radius: 16,
+            backgroundColor: isTransfer
+                ? Theme.of(context).colorScheme.primaryContainer
+                : Color(cat?.color ?? 0xFF90A4AE),
+            child: Icon(
+              isTransfer ? Icons.swap_horiz : (cat?.iconData ?? Icons.category),
+              size: kCategoryIconSize,
+              color: isTransfer
+                  ? Theme.of(context).colorScheme.onPrimaryContainer
+                  : Colors.white,
             ),
           ),
-        ],
-      ),
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => TxEditScreen(existing: tx)),
+          title: Text(
+            title,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+          ),
+          subtitle: Text(
+            subtitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 13,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (tx.receipt != null)
+                const Padding(
+                  padding: EdgeInsets.only(right: 6),
+                  child: Icon(Icons.receipt, size: 18),
+                ),
+              if (tx.recurringId != null)
+                const Padding(
+                  padding: EdgeInsets.only(right: 6),
+                  child: Icon(Icons.repeat, size: 18),
+                ),
+              Text(
+                '$sign${money(tx.amount)}',
+                style: TextStyle(
+                  color: color,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => TxEditScreen(existing: tx)),
+          ),
+        ),
       ),
     );
   }
