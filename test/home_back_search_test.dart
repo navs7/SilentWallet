@@ -223,6 +223,28 @@ void main() {
     });
   });
 
+  group('Reports category list', () {
+    testWidgets('names and values under the pie chart use a larger font', (t) async {
+      final now = DateTime.now();
+      await _pumpHome(t, txs: [
+        sampleTx('1', now, note: 'Coffee', paise: 12000, categoryId: 'e0'),
+        sampleTx('2', now, note: 'Veg', paise: 8000, categoryId: 'e1'),
+      ]);
+      await t.tap(find.descendant(of: find.byType(NavigationBar), matching: find.text('Reports')));
+      await t.pumpAndSettle();
+      final row = find.byKey(const Key('cat-row-e0'));
+      expect(row, findsOneWidget);
+      final tile = t.widget<ListTile>(row);
+      expect((tile.title as Text).data, 'Food & Dining');
+      expect((tile.title as Text).style!.fontSize, greaterThanOrEqualTo(16));
+      final value = tile.trailing as Text;
+      expect(value.data, contains('120.00'));
+      expect(value.data, contains('60%'));
+      expect(value.style!.fontSize, greaterThanOrEqualTo(16));
+      expect(value.style!.fontWeight, FontWeight.w600);
+    });
+  });
+
   group('Transactions tab and list icons', () {
     final txs = [sampleTx('1', thisMonth, note: 'Coffee', paise: 12000, categoryId: 'e0')];
     Finder navItem(String label) =>

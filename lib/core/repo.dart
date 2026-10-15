@@ -359,6 +359,21 @@ class Repo extends ChangeNotifier {
     );
   }
 
+  /// True if [day] has at least one entry the user added (entries created
+  /// automatically by recurring rules don't count).
+  Future<bool> hasManualEntryOn(DateTime day) async {
+    final from = DateTime(day.year, day.month, day.day);
+    final to = DateTime(day.year, day.month, day.day + 1);
+    final n = Sqflite.firstIntValue(
+      await db.rawQuery(
+        'SELECT COUNT(*) FROM transactions '
+        'WHERE date >= ? AND date < ? AND recurring_id IS NULL',
+        [from.millisecondsSinceEpoch, to.millisecondsSinceEpoch],
+      ),
+    );
+    return (n ?? 0) > 0;
+  }
+
   Future<List<Tx>> allTx() async => (await db.query(
     'transactions',
     orderBy: 'date DESC',

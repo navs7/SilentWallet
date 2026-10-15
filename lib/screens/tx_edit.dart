@@ -33,6 +33,8 @@ class _TxEditScreenState extends State<TxEditScreen> {
   final _scroll = ScrollController();
   bool _padOpen = false; // in-app amount keypad showing
   bool _calc = false; // calculator row shown on the keypad
+  Frequency? _repeat; // null = does not repeat (new entries only)
+  DateTime? _repeatEnd; // optional last date of the repeat
   final _noteCtl = TextEditingController();
   final _noteFocus = FocusNode();
   List<NoteEntry> _history = []; // notes used before, for suggestions
@@ -248,6 +250,119 @@ class _TxEditScreenState extends State<TxEditScreen> {
     );
   }
 
+  // ---------- repeat ----------
+  void _repeatSheet() {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, set) {
+          final fmt = DateFormat('d MMM yyyy');
+          final cs = Theme.of(ctx).colorScheme;
+          void choose(Frequency? f) {
+            setState(() {
+              _repeat = f;
+              if (f == null) _repeatEnd = null;
+            });
+            set(() {});
+          }
+
+          final first = dayOf(_date);
+          final next = _repeat == null
+              ? null
+              : nextOccurrence(first, _repeat!, anchorDay: first.day);
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Repeat', style: Theme.of(ctx).textTheme.titleLarge),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Saves this entry now and adds it again on each date.',
+                    style: TextStyle(color: cs.onSurfaceVariant),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: [
+                      ChoiceChip(
+                        key: const Key('repeat-none'),
+                        label: const Text('Does not repeat'),
+                        selected: _repeat == null,
+                        onSelected: (_) => choose(null),
+                      ),
+                      for (final f in Frequency.values)
+                        ChoiceChip(
+                          key: Key('repeat-${f.name}'),
+                          label: Text(toBeginningOfSentenceCase(f.name)!),
+                          selected: _repeat == f,
+                          onSelected: (_) => choose(f),
+                        ),
+                    ],
+                  ),
+                  if (_repeat != null) ...[
+                    const SizedBox(height: 8),
+                    ListTile(
+                      key: const Key('repeat-end'),
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.event_busy),
+                      title: Text(
+                        _repeatEnd == null
+                            ? 'Ends: never'
+                            : 'Ends ${fmt.format(_repeatEnd!)}',
+                      ),
+                      trailing: _repeatEnd == null
+                          ? null
+                          : IconButton(
+                              icon: const Icon(Icons.close),
+                              onPressed: () {
+                                setState(() => _repeatEnd = null);
+                                set(() {});
+                              },
+                            ),
+                      onTap: () async {
+                        final d = await showDatePicker(
+                          context: ctx,
+                          initialDate: _repeatEnd ?? next!,
+                          firstDate: first,
+                          lastDate: DateTime.now().add(
+                            const Duration(days: 3650),
+                          ),
+                        );
+                        if (d != null) {
+                          setState(() => _repeatEnd = dayOf(d));
+                          set(() {});
+                        }
+                      },
+                    ),
+                    Text(
+                      'Next one: ${fmt.format(next!)}'
+                      '${next.isAfter(dayOf(DateTime.now())) ? '' : ' — entries up to today will be added automatically'}',
+                      key: const Key('repeat-next'),
+                      style: TextStyle(color: cs.onSurfaceVariant),
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: FilledButton(
+                      key: const Key('repeat-done'),
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('Done'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   // ---------- save / delete ----------
   Future<void> _save() async {
     final amt = _amountPaise;
@@ -273,6 +388,30 @@ class _TxEditScreenState extends State<TxEditScreen> {
       if (old?.receipt != null) await repo.deleteReceipt(old!.receipt!);
       receipt = null;
     }
+    // Repeat: besides this entry, create a recurring rule that carries on
+    // from the next date (the existing recurring engine adds the later ones).
+    String? ruleId;
+    if (old == null && _repeat != null && _type != TxType.transfer) {
+      final first = dayOf(_date);
+      final note = _noteCtl.text.trim();
+      ruleId = newId();
+      await repo.saveRecurring(
+        Recurring(
+          id: ruleId,
+          title: note.isNotEmpty
+              ? note
+              : (repo.category(categoryId)?.name ?? 'Recurring'),
+          type: _type,
+          amount: amt,
+          accountId: _accountId!,
+          categoryId: categoryId,
+          frequency: _repeat!,
+          nextDue: nextOccurrence(first, _repeat!, anchorDay: first.day),
+          anchorDay: first.day,
+          endDate: _repeatEnd,
+        ),
+      );
+    }
     await repo.saveTx(
       Tx(
         id: old?.id ?? newId(),
@@ -284,9 +423,15 @@ class _TxEditScreenState extends State<TxEditScreen> {
         note: _noteCtl.text.trim(),
         date: _date,
         receipt: receipt,
-        recurringId: old?.recurringId,
+        recurringId: ruleId ?? old?.recurringId,
       ),
     );
+    if (ruleId != null && mounted) {
+      toast(
+        context,
+        'Saved. Repeats ${_repeat!.name} — manage it in More → Recurring.',
+      );
+    }
     if (mounted) Navigator.pop(context);
   }
 
@@ -449,6 +594,8 @@ class _TxEditScreenState extends State<TxEditScreen> {
         )
         .toList();
     final isTransfer = _type == TxType.transfer;
+    // Repeat is offered for new income / expense entries only.
+    final canRepeat = !isTransfer && widget.existing == null;
     final amountColor = switch (_type) {
       TxType.expense => Colors.red.shade400,
       TxType.income => Colors.green.shade600,
@@ -538,6 +685,10 @@ class _TxEditScreenState extends State<TxEditScreen> {
                               onSelectionChanged: (s) => setState(() {
                                 _type = s.first;
                                 _categoryId = null;
+                                if (_type == TxType.transfer) {
+                                  _repeat = null;
+                                  _repeatEnd = null;
+                                }
                               }),
                             ),
                           ),
@@ -719,6 +870,26 @@ class _TxEditScreenState extends State<TxEditScreen> {
                                     ),
                                   ),
                                 ),
+                                if (canRepeat) ...[
+                                  const SizedBox(width: 6),
+                                  Tooltip(
+                                    message: _repeat == null
+                                        ? 'Repeat'
+                                        : 'Repeats ${_repeat!.name}',
+                                    child: OutlinedButton(
+                                      key: const Key('repeat-button'),
+                                      onPressed: _repeatSheet,
+                                      style: OutlinedButton.styleFrom(
+                                        minimumSize: const Size(44, 42),
+                                        padding: EdgeInsets.zero,
+                                        backgroundColor: _repeat != null
+                                            ? cs.primaryContainer
+                                            : null,
+                                      ),
+                                      child: const Icon(Icons.repeat, size: 20),
+                                    ),
+                                  ),
+                                ],
                               ],
                             ),
                             const SizedBox(height: 8),

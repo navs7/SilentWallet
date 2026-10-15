@@ -40,6 +40,22 @@ class FakeRepo extends Repo {
     notifyListeners();
   }
 
+  /// Recurring rules saved through the UI.
+  final savedRules = <Recurring>[];
+
+  @override
+  Future<void> saveRecurring(Recurring r) async {
+    savedRules.add(r);
+    recurring = [...recurring.where((x) => x.id != r.id), r];
+    notifyListeners();
+  }
+
+  /// Set by tests: has the user added an entry today?
+  bool manualEntryToday = false;
+
+  @override
+  Future<bool> hasManualEntryOn(DateTime day) async => manualEntryToday;
+
   @override
   Future<void> saveCategory(Category c) async {
     categories = [...categories.where((x) => x.id != c.id), c];

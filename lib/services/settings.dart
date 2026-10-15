@@ -13,6 +13,12 @@ class Settings extends ChangeNotifier {
 
   /// Off (the default) blocks screenshots and hides the app in recent apps.
   bool get allowScreenshots => _p.getBool('allow_screenshots') ?? false;
+
+  /// Daily "add today's entries" reminder: on by default, 8:00 pm.
+  bool get dailyReminder => _p.getBool('daily_reminder') ?? true;
+  int get reminderHour => _p.getInt('reminder_hour') ?? 20;
+  int get reminderMinute => _p.getInt('reminder_minute') ?? 0;
+  bool get reminderPermissionAsked => _p.getBool('reminder_asked') ?? false;
   bool get weeklyReminder => _p.getBool('reminder') ?? true;
   DateTime? get lastBackup {
     final v = _p.getInt('last_backup');
@@ -33,6 +39,21 @@ class Settings extends ChangeNotifier {
   Future<void> setAllowScreenshots(bool v) async {
     await _p.setBool('allow_screenshots', v);
     notifyListeners();
+  }
+
+  Future<void> setDailyReminder(bool v) async {
+    await _p.setBool('daily_reminder', v);
+    notifyListeners();
+  }
+
+  Future<void> setReminderTime(int hour, int minute) async {
+    await _p.setInt('reminder_hour', hour);
+    await _p.setInt('reminder_minute', minute);
+    notifyListeners();
+  }
+
+  Future<void> markReminderPermissionAsked() async {
+    await _p.setBool('reminder_asked', true);
   }
 
   Future<void> setOnboarded() async {

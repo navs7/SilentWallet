@@ -1,4 +1,5 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/timezone.dart' as tz;
 
 /// Local-only notifications (no push service, no network).
 class Notifier {
@@ -14,11 +15,28 @@ class Notifier {
   }
 
   static Future<bool> requestPermission() async {
-    final a = _plugin
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >();
-    return (await a?.requestNotificationsPermission()) ?? false;
+    try {
+      final a = _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
+      return (await a?.requestNotificationsPermission()) ?? true;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  /// Whether Android currently lets this app show notifications.
+  static Future<bool> notificationsAllowed() async {
+    try {
+      final a = _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
+      return (await a?.areNotificationsEnabled()) ?? true;
+    } catch (_) {
+      return true;
+    }
   }
 
   static const _details = NotificationDetails(
@@ -44,4 +62,40 @@ class Notifier {
   }
 
   static Future<void> cancelBackupReminder() => _plugin.cancel(id: _backupId);
+
+  // ---- daily "add today's entries" reminder (one scheduled per day) ----
+  static const _entryBase = 2000;
+  static const _entrySlots = 60;
+
+  static const _entryDetails = NotificationDetails(
+    android: AndroidNotificationDetails(
+      'entry_reminder',
+      'Daily entry reminder',
+      channelDescription: "Reminds you to add today's entries",
+      importance: Importance.defaultImportance,
+    ),
+  );
+
+  static Future<void> cancelEntryReminders() async {
+    try {
+      for (var i = 0; i < _entrySlots; i++) {
+        await _plugin.cancel(id: _entryBase + i);
+      }
+    } catch (_) {}
+  }
+
+  /// Schedules one reminder at the local time [when] (slot 0..59).
+  static Future<void> scheduleEntryReminder(int slot, DateTime when) async {
+    try {
+      await _plugin.zonedSchedule(
+        id: _entryBase + slot,
+        title: 'Silent Wallet',
+        body: 'Anything to add for today? Log your entries before you forget.',
+        // an exact instant; the zone only matters for display
+        scheduledDate: tz.TZDateTime.from(when.toUtc(), tz.UTC),
+        notificationDetails: _entryDetails,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      );
+    } catch (_) {}
+  }
 }

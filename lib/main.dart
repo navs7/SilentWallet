@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -7,6 +9,7 @@ import 'screens/lock_screen.dart';
 import 'screens/onboarding.dart';
 import 'services/lock.dart';
 import 'services/notifications.dart';
+import 'services/reminders.dart';
 import 'services/screen_guard.dart';
 import 'services/settings.dart';
 import 'theme.dart';
@@ -19,12 +22,15 @@ Future<void> main() async {
   await Notifier.init();
   await repo.processRecurring();
   final lock = LockController(settings);
+  final reminders = ReminderService(settings, repo);
+  unawaited(reminders.start());
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider.value(value: settings),
         ChangeNotifierProvider.value(value: repo),
         ChangeNotifierProvider.value(value: lock),
+        Provider<ReminderService>.value(value: reminders),
       ],
       child: const SilentWalletApp(),
     ),
@@ -72,6 +78,7 @@ class _GateState extends State<_Gate> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       context.read<Repo>().processRecurring();
+      context.read<ReminderService>().refresh();
     }
   }
 

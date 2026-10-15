@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../core/repo.dart';
 import '../services/lock.dart';
+import '../services/notifications.dart';
 import '../services/screen_guard.dart';
 import '../services/settings.dart';
 import '../util.dart';
@@ -101,6 +102,51 @@ class MoreScreen extends StatelessWidget {
             await ScreenGuard.setSecure(!v);
           },
         ),
+        SwitchListTile(
+          key: const Key('daily-reminder'),
+          secondary: const Icon(Icons.notifications_active_outlined),
+          title: const Text('Daily reminder'),
+          subtitle: Text(
+            'At ${TimeOfDay(hour: s.reminderHour, minute: s.reminderMinute).format(context)}. '
+            'Skipped on days you have already added an entry.',
+          ),
+          value: s.dailyReminder,
+          onChanged: (v) async {
+            await s.setDailyReminder(v);
+            if (v) {
+              await Notifier.requestPermission();
+              if (!await Notifier.notificationsAllowed() && context.mounted) {
+                toast(
+                  context,
+                  'Notifications are turned off for Silent Wallet in Android settings.',
+                );
+              }
+            }
+          },
+        ),
+        if (s.dailyReminder)
+          ListTile(
+            key: const Key('reminder-time'),
+            leading: const Icon(Icons.schedule),
+            title: const Text('Reminder time'),
+            trailing: Text(
+              TimeOfDay(
+                hour: s.reminderHour,
+                minute: s.reminderMinute,
+              ).format(context),
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            onTap: () async {
+              final t = await showTimePicker(
+                context: context,
+                initialTime: TimeOfDay(
+                  hour: s.reminderHour,
+                  minute: s.reminderMinute,
+                ),
+              );
+              if (t != null) await s.setReminderTime(t.hour, t.minute);
+            },
+          ),
         ListTile(
           leading: const Icon(Icons.brightness_6),
           title: const Text('Theme'),
@@ -126,7 +172,7 @@ class MoreScreen extends StatelessWidget {
         const ListTile(
           leading: Icon(Icons.info_outline),
           title: Text('Silent Wallet'),
-          subtitle: Text('Version 1.0.11'),
+          subtitle: Text('Version 1.0.12'),
         ),
       ],
     );

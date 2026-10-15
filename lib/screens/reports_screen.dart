@@ -406,15 +406,26 @@ class _ReportsScreenState extends State<ReportsScreen> {
             const SizedBox(height: 12),
             for (final e in entries)
               ListTile(
+                key: Key('cat-row-${e.key}'),
                 dense: true,
                 contentPadding: EdgeInsets.zero,
                 leading: CircleAvatar(
-                  radius: 6,
+                  radius: 7,
                   backgroundColor: colorOf(e.key),
                 ),
-                title: Text(nameOf(e.key)),
+                title: Text(
+                  nameOf(e.key),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
                 trailing: Text(
                   '${money(e.value)}  ·  ${(e.value * 100 / total).toStringAsFixed(0)}%',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
           ],

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:silentwallet/core/models.dart';
@@ -444,6 +445,212 @@ void main() {
       expect(tx.categoryId, isNull);
       expect(tx.toAccountId, 'a2');
     });
+  });
+
+  group('repeat (recurring entries)', () {
+    final repeatBtn = find.byKey(const Key('repeat-button'));
+    final fmt = DateFormat('d MMM yyyy');
+    DateTime today() {
+      final n = DateTime.now();
+      return DateTime(n.year, n.month, n.day);
+    }
+
+    Future<void> openSheet(WidgetTester t) async {
+      await t.tap(repeatBtn);
+      await t.pumpAndSettle();
+    }
+
+    Future<void> choose(WidgetTester t, String key) async {
+      await t.tap(find.byKey(Key('repeat-$key')));
+      await t.pumpAndSettle();
+    }
+
+    Future<void> closeSheet(WidgetTester t) async {
+      await t.tap(find.byKey(const Key('repeat-done')));
+      await t.pumpAndSettle();
+    }
+
+    Future<void> save(WidgetTester t) async {
+      await t.tap(find.text('Save'));
+      await t.pumpAndSettle();
+    }
+
+    testWidgets('offered for new expense and income entries only', (t) async {
+      await _pump(t, const Size(393, 851));
+      await _toNote(t);
+      expect(repeatBtn, findsOneWidget);
+      await t.tap(find.text('Income'));
+      await t.pumpAndSettle();
+      expect(repeatBtn, findsOneWidget);
+      await t.tap(find.text('Transfer'));
+      await t.pumpAndSettle();
+      expect(repeatBtn, findsNothing);
+    });
+
+    testWidgets('not offered when editing an existing entry', (t) async {
+      await _pump(t, const Size(393, 851), existing: sampleTx('9', DateTime(2026, 3, 1), paise: 25050));
+      expect(find.text('Save'), findsOneWidget); // editing opens without the keypad
+      expect(repeatBtn, findsNothing);
+    });
+
+    testWidgets('the sheet offers none / daily / weekly / monthly / yearly', (t) async {
+      await _pump(t, const Size(393, 851));
+      await _toNote(t);
+      await openSheet(t);
+      for (final k in ['none', 'daily', 'weekly', 'monthly', 'yearly']) {
+        expect(find.byKey(Key('repeat-$k')), findsOneWidget, reason: k);
+      }
+      expect(find.byKey(const Key('repeat-end')), findsNothing); // only once a repeat is chosen
+    });
+
+    testWidgets('each choice shows its own next date', (t) async {
+      await _pump(t, const Size(393, 851));
+      await _toNote(t);
+      await openSheet(t);
+      final d = today();
+      for (final f in [Frequency.daily, Frequency.weekly, Frequency.monthly, Frequency.yearly]) {
+        await choose(t, f.name);
+        final next = nextOccurrence(d, f, anchorDay: d.day);
+        expect(t.widget<Text>(find.byKey(const Key('repeat-next'))).data, startsWith('Next one: ${fmt.format(next)}'), reason: f.name);
+      }
+      expect(find.text('Ends: never'), findsOneWidget);
+    });
+
+    testWidgets('choosing a repeat highlights the button; "Does not repeat" clears it', (t) async {
+      await _pump(t, const Size(393, 851));
+      await _toNote(t);
+      Color? bg() => t.widget<OutlinedButton>(repeatBtn).style?.backgroundColor?.resolve({});
+      expect(bg(), isNull);
+      await openSheet(t);
+      await choose(t, 'monthly');
+      await closeSheet(t);
+      expect(bg(), isNotNull);
+      expect(find.byTooltip('Repeats monthly'), findsOneWidget);
+      await openSheet(t);
+      await choose(t, 'none');
+      expect(find.byKey(const Key('repeat-end')), findsNothing);
+      await closeSheet(t);
+      expect(bg(), isNull);
+    });
+
+    testWidgets('saving with Monthly creates the entry AND a recurring rule', (t) async {
+      final repo = await _pump(t, const Size(393, 851));
+      await _toNote(t, '1500');
+      await openSheet(t);
+      await choose(t, 'monthly');
+      await closeSheet(t);
+      await save(t);
+      expect(tester(t), isNull);
+      final tx = repo.saved.single;
+      final rule = repo.savedRules.single;
+      final d = today();
+      expect(tx.amount, 150000);
+      expect(tx.recurringId, rule.id);
+      expect(rule.frequency, Frequency.monthly);
+      expect(rule.type, TxType.expense);
+      expect(rule.amount, 150000);
+      expect(rule.accountId, 'a1');
+      expect(rule.categoryId, tx.categoryId);
+      expect(rule.categoryId, 'e13'); // no category chosen: Other
+      expect(rule.nextDue, nextOccurrence(d, Frequency.monthly, anchorDay: d.day));
+      expect(rule.anchorDay, d.day);
+      expect(rule.endDate, isNull);
+      expect(rule.active, isTrue);
+      expect(find.textContaining('Repeats monthly'), findsOneWidget); // confirmation
+    });
+
+    testWidgets('the rule is titled with the note, or the category if there is none', (t) async {
+      final repo = await _pump(t, const Size(393, 851));
+      await _toNote(t, '499');
+      await t.enterText(_noteField, 'Netflix');
+      await openSheet(t);
+      await choose(t, 'monthly');
+      await closeSheet(t);
+      await save(t);
+      expect(repo.savedRules.single.title, 'Netflix');
+
+      await t.pumpWidget(const SizedBox()); // start a fresh Add page
+      final repo2 = await _pump(t, const Size(393, 851));
+      await t.tap(find.text('Groceries'));
+      await t.pump();
+      await _toNote(t, '80');
+      await openSheet(t);
+      await choose(t, 'weekly');
+      await closeSheet(t);
+      await save(t);
+      expect(repo2.savedRules.single.title, 'Groceries');
+    });
+
+    testWidgets('income repeats as income', (t) async {
+      final repo = await _pump(t, const Size(393, 851));
+      await t.tap(find.text('Income'));
+      await t.pumpAndSettle();
+      await _toNote(t, '30000');
+      await openSheet(t);
+      await choose(t, 'yearly');
+      await closeSheet(t);
+      await save(t);
+      expect(repo.savedRules.single.type, TxType.income);
+      expect(repo.savedRules.single.frequency, Frequency.yearly);
+      expect(repo.saved.single.type, TxType.income);
+    });
+
+    testWidgets('an end date can be set and is saved on the rule', (t) async {
+      final repo = await _pump(t, const Size(393, 851));
+      await _toNote(t, '100');
+      await openSheet(t);
+      await choose(t, 'weekly');
+      await t.tap(find.byKey(const Key('repeat-end')));
+      await t.pumpAndSettle();
+      await t.tap(find.text('OK')); // accepts the suggested date (the next one)
+      await t.pumpAndSettle();
+      final d = today();
+      final next = nextOccurrence(d, Frequency.weekly, anchorDay: d.day);
+      expect(find.text('Ends ${fmt.format(next)}'), findsOneWidget);
+      await closeSheet(t);
+      await save(t);
+      expect(repo.savedRules.single.endDate, next);
+    });
+
+    testWidgets('no repeat chosen: only the entry is saved (nothing else changes)', (t) async {
+      final repo = await _pump(t, const Size(393, 851));
+      await _toNote(t, '250');
+      await save(t);
+      expect(repo.saved.length, 1);
+      expect(repo.savedRules, isEmpty);
+      expect(repo.saved.single.recurringId, isNull);
+    });
+
+    testWidgets('picking a repeat and then switching to Transfer saves no rule', (t) async {
+      final repo = await _pump(t, const Size(393, 851));
+      await _toNote(t, '500');
+      await openSheet(t);
+      await choose(t, 'monthly');
+      await closeSheet(t);
+      await t.tap(find.text('Transfer'));
+      await t.pumpAndSettle();
+      await t.tap(find.byKey(const ValueKey('to-a1')));
+      await t.pumpAndSettle();
+      await t.tap(find.text('HDFC Savings').last);
+      await t.pumpAndSettle();
+      await save(t);
+      expect(repo.saved.single.type, TxType.transfer);
+      expect(repo.savedRules, isEmpty);
+      expect(repo.saved.single.recurringId, isNull);
+    });
+
+    for (final p in phones) {
+      testWidgets('the repeat button fits and the note box stays usable: ${p.$1}', (t) async {
+        await _pump(t, p.$2, top: p.$3, bottom: p.$4);
+        await _toNote(t);
+        expect(tester(t), isNull);
+        final r = t.getRect(repeatBtn);
+        expect(r.right, lessThanOrEqualTo(p.$2.width));
+        expect(r.bottom, lessThanOrEqualTo(p.$2.height - p.$4));
+        expect(t.getSize(_noteField).width, greaterThanOrEqualTo(110), reason: 'note box too narrow');
+        expect(_pageScrollExtent(t), 0);
+      });
+    }
   });
 
   group('categories and accounts', () {

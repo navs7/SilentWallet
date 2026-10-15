@@ -14,6 +14,7 @@ class OnboardingScreen extends StatefulWidget {
 class _OnboardingScreenState extends State<OnboardingScreen> {
   bool lock = true;
   bool reminder = true;
+  bool daily = true;
   bool busy = false;
 
   Future<void> _start() async {
@@ -35,10 +36,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     }
     await settings.setLock(enableLock);
     await settings.setWeeklyReminder(reminder);
-    if (reminder) {
-      await Notifier.requestPermission();
-      await Notifier.scheduleBackupReminder();
-    }
+    await settings.setDailyReminder(daily);
+    if (reminder || daily) await Notifier.requestPermission();
+    await settings.markReminderPermissionAsked();
+    if (reminder) await Notifier.scheduleBackupReminder();
     await settings.setOnboarded();
   }
 
@@ -90,6 +91,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               onChanged: (v) => setState(() => reminder = v),
               title: const Text('Weekly backup reminder'),
               subtitle: const Text('A local notification, never from a server'),
+            ),
+            SwitchListTile(
+              value: daily,
+
+              onChanged: (v) => setState(() => daily = v),
+
+              title: const Text('Daily reminder at 8:00 pm'),
+
+              subtitle: const Text(
+                'Skipped on days you have already added an entry',
+              ),
             ),
             const SizedBox(height: 16),
             FilledButton(
