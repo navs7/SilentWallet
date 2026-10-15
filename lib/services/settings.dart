@@ -10,6 +10,9 @@ class Settings extends ChangeNotifier {
 
   bool get lockEnabled => _p.getBool('lock') ?? false;
   bool get onboarded => _p.getBool('onboarded') ?? false;
+
+  /// Off (the default) blocks screenshots and hides the app in recent apps.
+  bool get allowScreenshots => _p.getBool('allow_screenshots') ?? false;
   bool get weeklyReminder => _p.getBool('reminder') ?? true;
   DateTime? get lastBackup {
     final v = _p.getInt('last_backup');
@@ -24,6 +27,11 @@ class Settings extends ChangeNotifier {
 
   Future<void> setLock(bool v) async {
     await _p.setBool('lock', v);
+    notifyListeners();
+  }
+
+  Future<void> setAllowScreenshots(bool v) async {
+    await _p.setBool('allow_screenshots', v);
     notifyListeners();
   }
 

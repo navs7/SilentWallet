@@ -30,7 +30,7 @@ An offline expense manager for Android. **Everything stays on the phone** — no
 | Encrypted data at rest | SQLite database encrypted with SQLCipher (AES-256). The key is random, created on first launch and stored in the Android Keystore via `flutter_secure_storage` — it is never shown or sent anywhere. |
 | Encrypted receipts | Each photo is stored as an AES-256-GCM encrypted file in the app's private folder; the picked cache copy is deleted. |
 | App lock | `local_auth` (biometric or device credential). The app re-locks when sent to the background. |
-| Screen privacy | `FLAG_SECURE` blocks screenshots and hides the recent-apps preview. |
+| Screen privacy | `FLAG_SECURE` blocks screenshots and screen recording and hides the recent-apps preview. It is on by default; **More → Allow screenshots** turns it off when you need a screenshot. |
 | No silent cloud copies | `allowBackup="false"` and data-extraction rules exclude all app data from Google backup and device transfer. |
 | Backups you control | **More → Backup & restore** produces a `.swbak` file: a zip of the data and receipts, encrypted with AES-256-GCM using a key derived from your password (PBKDF2-HMAC-SHA256, 120,000 iterations, random salt). The password cannot be recovered. |
 

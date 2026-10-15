@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../core/repo.dart';
 import '../services/lock.dart';
+import '../services/screen_guard.dart';
 import '../services/settings.dart';
 import '../util.dart';
 import 'backup_screen.dart';
@@ -88,6 +89,18 @@ class MoreScreen extends StatelessWidget {
             await s.setLock(v);
           },
         ),
+        SwitchListTile(
+          secondary: const Icon(Icons.screenshot_outlined),
+          title: const Text('Allow screenshots'),
+          subtitle: const Text(
+            'Off: screenshots and screen recording are blocked and the app is hidden in recent apps.',
+          ),
+          value: s.allowScreenshots,
+          onChanged: (v) async {
+            await s.setAllowScreenshots(v);
+            await ScreenGuard.setSecure(!v);
+          },
+        ),
         ListTile(
           leading: const Icon(Icons.brightness_6),
           title: const Text('Theme'),
@@ -113,7 +126,7 @@ class MoreScreen extends StatelessWidget {
         const ListTile(
           leading: Icon(Icons.info_outline),
           title: Text('Silent Wallet'),
-          subtitle: Text('Version 1.0.8'),
+          subtitle: Text('Version 1.0.9'),
         ),
       ],
     );

@@ -7,12 +7,14 @@ import 'screens/lock_screen.dart';
 import 'screens/onboarding.dart';
 import 'services/lock.dart';
 import 'services/notifications.dart';
+import 'services/screen_guard.dart';
 import 'services/settings.dart';
 import 'theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final settings = await Settings.load();
+  await ScreenGuard.setSecure(!settings.allowScreenshots);
   final repo = await Repo.open();
   await Notifier.init();
   await repo.processRecurring();
