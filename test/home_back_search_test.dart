@@ -223,25 +223,122 @@ void main() {
     });
   });
 
-  group('Reports category list', () {
-    testWidgets('names and values under the pie chart use a larger font', (t) async {
-      final now = DateTime.now();
-      await _pumpHome(t, txs: [
-        sampleTx('1', now, note: 'Coffee', paise: 12000, categoryId: 'e0'),
-        sampleTx('2', now, note: 'Veg', paise: 8000, categoryId: 'e1'),
-      ]);
+  group('Reports category table', () {
+    final now = DateTime.now();
+    final txs = [
+      sampleTx('1', now, note: 'Coffee', paise: 12000, categoryId: 'e0'),
+      sampleTx('2', now, note: 'Veg', paise: 8000, categoryId: 'e1'),
+      sampleTx('3', now, note: 'Shop', paise: 123456, categoryId: 'e2'),
+    ];
+
+    Future<void> openReports(WidgetTester t, {Size? size}) async {
+      await _pumpHome(t, txs: txs);
+      if (size != null) {
+        t.view.physicalSize = size;
+        await t.pumpAndSettle();
+      }
       await t.tap(find.descendant(of: find.byType(NavigationBar), matching: find.text('Reports')));
       await t.pumpAndSettle();
-      final row = find.byKey(const Key('cat-row-e0'));
-      expect(row, findsOneWidget);
-      final tile = t.widget<ListTile>(row);
-      expect((tile.title as Text).data, 'Food & Dining');
-      expect((tile.title as Text).style!.fontSize, greaterThanOrEqualTo(16));
-      final value = tile.trailing as Text;
-      expect(value.data, contains('120.00'));
-      expect(value.data, contains('60%'));
-      expect(value.style!.fontSize, greaterThanOrEqualTo(16));
-      expect(value.style!.fontWeight, FontWeight.w600);
+    }
+
+    Finder row(String id) => find.byKey(Key('cat-row-$id'));
+    Finder inRow(String id, String text) => find.descendant(of: row(id), matching: find.text(text));
+    Text txt(WidgetTester t, Finder f) => t.widget<Text>(f);
+
+    testWidgets('has a header row, one row per category, and a total row', (t) async {
+      await openReports(t);
+      final head = find.byKey(const Key('cat-header'));
+      expect(find.descendant(of: head, matching: find.text('Category')), findsOneWidget);
+      expect(find.descendant(of: head, matching: find.text('Amount')), findsOneWidget);
+      expect(find.descendant(of: head, matching: find.text('Share')), findsOneWidget);
+      expect(inRow('e2', 'Shopping'), findsOneWidget);
+      expect(inRow('e2', '₹1,234.56'), findsOneWidget);
+      expect(inRow('e2', '86%'), findsOneWidget);
+      expect(inRow('e0', '₹120.00'), findsOneWidget);
+      expect(inRow('e0', '8%'), findsOneWidget);
+      expect(inRow('e1', '₹80.00'), findsOneWidget);
+      expect(inRow('e1', '6%'), findsOneWidget);
+      final total = find.byKey(const Key('cat-total'));
+      expect(find.descendant(of: total, matching: find.text('Total')), findsOneWidget);
+      expect(find.descendant(of: total, matching: find.text('₹1,434.56')), findsOneWidget);
+      expect(find.descendant(of: total, matching: find.text('100%')), findsOneWidget);
+    });
+
+    testWidgets('biggest first, total last', (t) async {
+      await openReports(t);
+      double y(String id) => t.getTopLeft(row(id)).dy;
+      expect(y('e2'), lessThan(y('e0')));
+      expect(y('e0'), lessThan(y('e1')));
+      expect(y('e1'), lessThan(t.getTopLeft(find.byKey(const Key('cat-total'))).dy));
+    });
+
+    testWidgets('the columns line up exactly from row to row', (t) async {
+      await openReports(t);
+      final names = {'e2': 'Shopping', 'e0': 'Food & Dining', 'e1': 'Groceries'};
+      final amounts = {'e2': '₹1,234.56', 'e0': '₹120.00', 'e1': '₹80.00'};
+      final shares = {'e2': '86%', 'e0': '8%', 'e1': '6%'};
+      final nameLeft = {for (final e in names.entries) t.getRect(inRow(e.key, e.value)).left};
+      final amountRight = {for (final e in amounts.entries) t.getRect(inRow(e.key, e.value)).right};
+      final shareRight = {for (final e in shares.entries) t.getRect(inRow(e.key, e.value)).right};
+      expect(nameLeft.length, 1, reason: 'category names start at the same x');
+      expect(amountRight.length, 1, reason: 'amounts end at the same x');
+      expect(shareRight.length, 1, reason: 'shares end at the same x');
+      // header and total use the same columns
+      final head = find.byKey(const Key('cat-header'));
+      final total = find.byKey(const Key('cat-total'));
+      expect(t.getRect(find.descendant(of: head, matching: find.text('Amount'))).right, amountRight.single);
+      expect(t.getRect(find.descendant(of: head, matching: find.text('Share'))).right, shareRight.single);
+      expect(t.getRect(find.descendant(of: total, matching: find.text('₹1,434.56'))).right, amountRight.single);
+      expect(t.getRect(find.descendant(of: total, matching: find.text('100%'))).right, shareRight.single);
+      expect(t.getRect(find.descendant(of: head, matching: find.text('Category'))).left, nameLeft.single);
+    });
+
+    testWidgets('numbers are right-aligned, tabular and large; the header is small and muted', (t) async {
+      await openReports(t);
+      final amount = txt(t, inRow('e0', '₹120.00'));
+      expect(amount.textAlign, TextAlign.right);
+      expect(amount.style!.fontFeatures, contains(const FontFeature.tabularFigures()));
+      expect(amount.style!.fontSize, greaterThanOrEqualTo(16));
+      expect(amount.style!.fontWeight, FontWeight.w600);
+      final share = txt(t, inRow('e0', '8%'));
+      expect(share.textAlign, TextAlign.right);
+      expect(share.style!.fontFeatures, contains(const FontFeature.tabularFigures()));
+      expect(txt(t, inRow('e0', 'Food & Dining')).style!.fontSize, greaterThanOrEqualTo(16));
+      final head = find.byKey(const Key('cat-header'));
+      final h = txt(t, find.descendant(of: head, matching: find.text('Amount')));
+      expect(h.style!.fontSize, lessThan(14));
+      expect(h.style!.color, isNotNull); // muted colour
+      expect(txt(t, find.descendant(of: find.byKey(const Key('cat-total')), matching: find.text('Total'))).style!.fontWeight, FontWeight.w700);
+    });
+
+    testWidgets('a long category name is cut with an ellipsis, not pushed into the numbers', (t) async {
+      await openReports(t, size: const Size(340, 800));
+      expect(t.takeException(), isNull);
+      final name = t.getRect(inRow('e0', 'Food & Dining'));
+      final amount = t.getRect(inRow('e0', '₹120.00'));
+      expect(name.right, lessThanOrEqualTo(amount.left + 0.5));
+    });
+  });
+
+  group('the Manage tab', () {
+    Finder navItem(String label) => find.descendant(of: find.byType(NavigationBar), matching: find.text(label));
+
+    testWidgets('the bottom bar says Manage, no longer Accounts', (t) async {
+      await _pumpHome(t);
+      expect(navItem('Manage'), findsOneWidget);
+      expect(navItem('Accounts'), findsNothing);
+      expect(navItem('Transactions'), findsOneWidget);
+      expect(navItem('Reports'), findsOneWidget);
+      expect(navItem('More'), findsOneWidget);
+    });
+
+    testWidgets('it opens the accounts and categories page', (t) async {
+      await _pumpHome(t);
+      await t.tap(navItem('Manage'));
+      await t.pumpAndSettle();
+      expect(find.text('Total balance'), findsOneWidget);
+      expect(find.byKey(const Key('edit-accounts')), findsOneWidget);
+      expect(find.byKey(const Key('edit-categories')), findsOneWidget);
     });
   });
 
@@ -526,8 +623,9 @@ void main() {
       await _back(t);
       expect(_tab(t), 0);
       expect(exit.calls, 0);
-      await t.tap(find.text('Accounts'));
+      await t.tap(find.descendant(of: find.byType(NavigationBar), matching: find.text('Manage')));
       await t.pumpAndSettle();
+      expect(_tab(t), 2);
       await _back(t);
       expect(_tab(t), 0);
       expect(exit.calls, 0);

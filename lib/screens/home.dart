@@ -91,8 +91,8 @@ class _HomeScreenState extends State<HomeScreen> {
               label: 'Reports',
             ),
             const NavigationDestination(
-              icon: Icon(Icons.account_balance_wallet),
-              label: 'Accounts',
+              icon: Icon(Icons.dashboard_customize),
+              label: 'Manage',
             ),
             NavigationDestination(
               icon: Badge(

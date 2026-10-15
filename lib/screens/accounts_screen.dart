@@ -7,8 +7,15 @@ import '../theme.dart';
 import '../util.dart';
 import 'categories_screen.dart';
 
-class AccountsScreen extends StatelessWidget {
+class AccountsScreen extends StatefulWidget {
   const AccountsScreen({super.key});
+  @override
+  State<AccountsScreen> createState() => _AccountsScreenState();
+}
+
+class _AccountsScreenState extends State<AccountsScreen> {
+  bool _editAccounts = false;
+  bool _editCategories = false;
 
   @override
   Widget build(BuildContext context) {
@@ -23,6 +30,13 @@ class AccountsScreen extends StatelessWidget {
         return ListView(
           padding: const EdgeInsets.only(bottom: 96),
           children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+              child: Text(
+                'Manage',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+            ),
             Card(
               margin: const EdgeInsets.fromLTRB(10, 6, 10, 4),
               child: Padding(
@@ -43,9 +57,20 @@ class AccountsScreen extends StatelessWidget {
                 ),
               ),
             ),
-            _header(context, 'Accounts'),
+            _sectionHeader(
+              context,
+              title: 'Accounts',
+              addKey: const Key('add-account'),
+              onAdd: () => showAccountEditor(context, null),
+              editKey: const Key('edit-accounts'),
+              editing: _editAccounts,
+              onToggle: () => setState(() => _editAccounts = !_editAccounts),
+            ),
+            if (_editAccounts)
+              _hint(context, 'Tap an account to change or delete it.'),
             for (final a in repo.accounts)
               ListTile(
+                key: Key('account-${a.id}'),
                 leading: CircleAvatar(
                   radius: 16,
                   child: Icon(accountTypes[a.type] ?? Icons.folder, size: 18),
@@ -72,29 +97,44 @@ class AccountsScreen extends StatelessWidget {
                   ),
                 ),
                 subtitle: Text(a.isDefault ? '${a.type} · Default' : a.type),
-                trailing: Text(
-                  money(bal[a.id] ?? a.openingBalance),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontFeatures: kTabularFigures,
-                  ),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      money(bal[a.id] ?? a.openingBalance),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontFeatures: kTabularFigures,
+                      ),
+                    ),
+                    if (_editAccounts) ...[
+                      const SizedBox(width: 8),
+                      const Icon(Icons.edit_outlined, size: 18),
+                    ],
+                  ],
                 ),
-                onTap: () => showAccountEditor(context, a),
+                onTap: _editAccounts
+                    ? () => showAccountEditor(context, a)
+                    : null,
               ),
-            Padding(
-              padding: const EdgeInsets.all(10),
-              child: OutlinedButton.icon(
-                onPressed: () => showAccountEditor(context, null),
-                icon: const Icon(Icons.add),
-                label: const Text('New account'),
-              ),
-            ),
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 14),
               child: Divider(),
             ),
-            _header(context, 'Categories'),
-            const CategoriesSection(),
+            _sectionHeader(
+              context,
+              title: 'Categories',
+              editKey: const Key('edit-categories'),
+              editing: _editCategories,
+              onToggle: () =>
+                  setState(() => _editCategories = !_editCategories),
+            ),
+            if (_editCategories)
+              _hint(
+                context,
+                'Tap a category to rename, recolour or delete it.',
+              ),
+            CategoriesSection(editing: _editCategories),
           ],
         );
       },
@@ -228,11 +268,48 @@ Future<void> showAccountEditor(BuildContext context, Account? existing) async {
   );
 }
 
-Widget _header(BuildContext context, String text) => Padding(
-  padding: const EdgeInsets.fromLTRB(16, 10, 16, 2),
+/// A section title with its actions, so it is clear what can be done here.
+Widget _sectionHeader(
+  BuildContext context, {
+  required String title,
+  required bool editing,
+  required VoidCallback onToggle,
+  required Key editKey,
+  VoidCallback? onAdd,
+  Key? addKey,
+}) => Padding(
+  padding: const EdgeInsets.fromLTRB(16, 8, 8, 0),
+  child: Row(
+    children: [
+      Expanded(
+        child: Text(
+          title,
+          style: Theme.of(context).textTheme.titleSmall
+              ?.copyWith(fontWeight: FontWeight.w700),
+        ),
+      ),
+      if (onAdd != null)
+        TextButton.icon(
+          key: addKey,
+          onPressed: onAdd,
+          icon: const Icon(Icons.add, size: 18),
+          label: const Text('Add'),
+        ),
+      TextButton.icon(
+        key: editKey,
+        onPressed: onToggle,
+        icon: Icon(editing ? Icons.check : Icons.edit_outlined, size: 18),
+        label: Text(editing ? 'Done' : 'Edit'),
+      ),
+    ],
+  ),
+);
+
+Widget _hint(BuildContext context, String text) => Padding(
+  padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
   child: Text(
     text,
-    style: Theme.of(context).textTheme.titleSmall
-        ?.copyWith(fontWeight: FontWeight.w700),
+    style: Theme.of(context).textTheme.bodySmall
+        ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
   ),
 );

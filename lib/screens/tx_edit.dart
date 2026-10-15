@@ -369,7 +369,7 @@ class _TxEditScreenState extends State<TxEditScreen> {
     final amt = _amountPaise;
     if (amt == null) return toast(context, 'Enter an amount.');
     if (_accountId == null) {
-      return toast(context, 'Create an account first (Accounts tab).');
+      return toast(context, 'Create an account first (Manage tab).');
     }
     if (_type == TxType.transfer && _toAccountId == null) {
       return toast(context, 'Choose the destination account.');

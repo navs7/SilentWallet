@@ -5,52 +5,8 @@ import '../core/models.dart';
 import '../core/repo.dart';
 import '../util.dart';
 
-class CategoriesScreen extends StatelessWidget {
-  const CategoriesScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final repo = context.watch<Repo>();
-    Widget section(String title, TxType kind) => Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(14, 10, 14, 2),
-          child: Text(title, style: Theme.of(context).textTheme.titleSmall),
-        ),
-        for (final c in repo.categories.where((c) => c.kind == kind))
-          ListTile(
-            leading: CircleAvatar(
-              radius: 16,
-              backgroundColor: Color(c.color),
-              child: Icon(c.iconData, size: 18, color: Colors.white),
-            ),
-            title: Text(c.name),
-            trailing: c.isCustom ? const Icon(Icons.edit, size: 18) : null,
-            onTap: () => showCategoryEditor(context, c, kind),
-          ),
-        TextButton.icon(
-          onPressed: () => showCategoryEditor(context, null, kind),
-          icon: const Icon(Icons.add),
-          label: Text('Add ${kind.name} category'),
-        ),
-      ],
-    );
-    return Scaffold(
-      appBar: AppBar(title: const Text('Categories')),
-      body: ListView(
-        children: [
-          section('Expense categories', TxType.expense),
-          section('Income categories', TxType.income),
-          const SizedBox(height: 32),
-        ],
-      ),
-    );
-  }
-}
-
 /// The add / edit sheet for a category (shared by the Categories page and the
-/// Accounts tab).
+/// Manage tab).
 Future<void> showCategoryEditor(
   BuildContext context,
   Category? c,
@@ -178,9 +134,11 @@ Future<void> showCategoryEditor(
 }
 
 /// Categories as compact tags (tap to edit, "Add" to create), for embedding in
-/// another page such as the Accounts tab.
+/// another page such as the Manage tab.
 class CategoriesSection extends StatelessWidget {
-  const CategoriesSection({super.key});
+  /// In edit mode the tags show a pencil and open the editor when tapped.
+  final bool editing;
+  const CategoriesSection({super.key, this.editing = false});
 
   @override
   Widget build(BuildContext context) {
@@ -204,7 +162,10 @@ class CategoriesSection extends StatelessWidget {
               for (final c in repo.categories.where((c) => c.kind == kind))
                 _CategoryTag(
                   category: c,
-                  onTap: () => showCategoryEditor(context, c, kind),
+                  editing: editing,
+                  onTap: editing
+                      ? () => showCategoryEditor(context, c, kind)
+                      : null,
                 ),
               ActionChip(
                 key: Key('add-category-${kind.name}'),
@@ -230,15 +191,20 @@ class CategoriesSection extends StatelessWidget {
 
 class _CategoryTag extends StatelessWidget {
   final Category category;
-  final VoidCallback onTap;
-  const _CategoryTag({required this.category, required this.onTap});
+  final bool editing;
+  final VoidCallback? onTap;
+  const _CategoryTag({
+    required this.category,
+    required this.editing,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Material(
       key: Key('cat-chip-${category.id}'),
-      color: cs.surfaceContainerHighest,
+      color: editing ? cs.secondaryContainer : cs.surfaceContainerHighest,
       shape: const StadiumBorder(),
       child: InkWell(
         customBorder: const StadiumBorder(),
@@ -261,6 +227,14 @@ class _CategoryTag extends StatelessWidget {
                   fontWeight: FontWeight.w500,
                 ),
               ),
+              if (editing) ...[
+                const SizedBox(width: 6),
+                Icon(
+                  Icons.edit_outlined,
+                  size: 13,
+                  color: cs.onSecondaryContainer,
+                ),
+              ],
             ],
           ),
         ),

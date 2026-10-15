@@ -9,7 +9,6 @@ import '../services/screen_guard.dart';
 import '../services/settings.dart';
 import '../util.dart';
 import 'backup_screen.dart';
-import 'categories_screen.dart';
 import 'recurring_screen.dart';
 
 class MoreScreen extends StatelessWidget {
@@ -51,11 +50,6 @@ class MoreScreen extends StatelessWidget {
           leading: const Icon(Icons.repeat),
           title: const Text('Recurring expenses'),
           onTap: () => _open(context, const RecurringScreen()),
-        ),
-        ListTile(
-          leading: const Icon(Icons.category),
-          title: const Text('Categories'),
-          onTap: () => _open(context, const CategoriesScreen()),
         ),
         ListTile(
           leading: const Icon(Icons.backup),

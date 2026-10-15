@@ -163,6 +163,9 @@ void main() {
   testWidgets('transactions, light', (t) => compare(t, Brightness.light, 'transactions_light'));
   testWidgets('transactions, dark', (t) => compare(t, Brightness.dark, 'transactions_dark'));
   testWidgets('reports, light', (t) => compare(t, Brightness.light, 'reports_light', tab: 'Reports'));
+  testWidgets('reports, dark', (t) => compare(t, Brightness.dark, 'reports_dark', tab: 'Reports'));
+  testWidgets('manage, light', (t) => compare(t, Brightness.light, 'manage_light', tab: 'Manage'));
+  testWidgets('manage, dark', (t) => compare(t, Brightness.dark, 'manage_dark', tab: 'Manage'));
 
   testWidgets('weights specimen', (t) async {
     t.view.devicePixelRatio = 2;

@@ -28,11 +28,11 @@ It has no internet permission, no account, no ads and no cloud. Nothing you ente
 |---|---|
 | Add an expense, income or transfer | **Add** button (attach a receipt photo if you like) |
 | See where money went | **Reports** tab |
-| Add a bank / cash / UPI account | **Accounts** tab |
+| Add a bank / cash / UPI account | **Manage** tab → Accounts → **Add** |
 | Type an amount or do a quick sum | The keypad on the **Add** page: tap the calculator key for + − × ÷, then **Done** to go to the note |
 | Find a past transaction | The search icon on **Transactions**: search notes, categories, accounts or amounts, and use **Filters** for time period, account, category and amount range |
-| Choose which account new entries start on | **Accounts** tab → tap an account → **Default account** |
-| Make your own category | **More → Categories** |
+| Choose which account new entries start on | **Manage** tab → Accounts → **Edit** → tap an account → **Default account** |
+| Make or change your own categories | **Manage** tab → Categories (**Add** a new one, or **Edit** to rename, recolour or delete) |
 | Make an entry repeat (rent, subscriptions, salary) | The repeat button 🔁 next to the receipt button on the **Add** page |
 | Automatically record rent, subscriptions, salary | **More → Recurring expenses** |
 | Get a daily reminder to add entries | **More → Daily reminder** (on by default at 8:00 pm; skipped if you already added an entry that day; you can change the time or turn it off) |

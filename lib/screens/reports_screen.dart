@@ -408,33 +408,110 @@ class _ReportsScreenState extends State<ReportsScreen> {
               ),
             ),
             const SizedBox(height: 12),
+            _catRow(
+              context,
+              key: const Key('cat-header'),
+              name: 'Category',
+              amount: 'Amount',
+              share: 'Share',
+              header: true,
+            ),
+            Divider(
+              height: 1,
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
             for (final e in entries)
-              ListTile(
+              _catRow(
+                context,
                 key: Key('cat-row-${e.key}'),
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                leading: CircleAvatar(
-                  radius: 7,
-                  backgroundColor: colorOf(e.key),
-                ),
-                title: Text(
-                  nameOf(e.key),
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                trailing: Text(
-                  '${money(e.value)}  ·  ${(e.value * 100 / total).toStringAsFixed(0)}%',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    fontFeatures: kTabularFigures,
-                  ),
-                ),
+                dot: colorOf(e.key),
+                name: nameOf(e.key),
+                amount: money(e.value),
+                share: '${(e.value * 100 / total).toStringAsFixed(0)}%',
               ),
+            Divider(
+              height: 1,
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
+            _catRow(
+              context,
+              key: const Key('cat-total'),
+              name: 'Total',
+              amount: money(total),
+              share: '100%',
+              total: true,
+            ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// One row of the category table. The columns have fixed widths so the
+  /// amounts and shares line up exactly from row to row.
+  Widget _catRow(
+    BuildContext context, {
+    required Key key,
+    required String name,
+    required String amount,
+    required String share,
+    Color? dot,
+    bool header = false,
+    bool total = false,
+  }) {
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    final TextStyle nameStyle = header
+        ? TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: muted)
+        : TextStyle(
+            fontSize: 16,
+            fontWeight: total ? FontWeight.w700 : FontWeight.w500,
+          );
+    final TextStyle amountStyle = header
+        ? nameStyle
+        : TextStyle(
+            fontSize: 16,
+            fontWeight: total ? FontWeight.w700 : FontWeight.w600,
+            fontFeatures: kTabularFigures,
+          );
+    final TextStyle shareStyle = header
+        ? nameStyle
+        : TextStyle(
+            fontSize: 15,
+            fontWeight: total ? FontWeight.w700 : FontWeight.w500,
+            color: total ? null : muted,
+            fontFeatures: kTabularFigures,
+          );
+    return Padding(
+      key: key,
+      padding: EdgeInsets.symmetric(vertical: header ? 6 : 8),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 22,
+            child: dot == null
+                ? null
+                : Align(
+                    alignment: Alignment.centerLeft,
+                    child: CircleAvatar(radius: 6, backgroundColor: dot),
+                  ),
+          ),
+          Expanded(
+            child: Text(
+              name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: nameStyle,
+            ),
+          ),
+          SizedBox(
+            width: 108,
+            child: Text(amount, textAlign: TextAlign.right, style: amountStyle),
+          ),
+          SizedBox(
+            width: 54,
+            child: Text(share, textAlign: TextAlign.right, style: shareStyle),
+          ),
+        ],
       ),
     );
   }
