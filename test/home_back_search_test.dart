@@ -7,6 +7,7 @@ import 'package:silentwallet/core/models.dart';
 import 'package:silentwallet/core/repo.dart';
 import 'package:silentwallet/screens/back_guard.dart';
 import 'package:silentwallet/screens/home.dart';
+import 'package:silentwallet/screens/tx_list.dart';
 import 'package:silentwallet/services/lock.dart';
 import 'package:silentwallet/services/settings.dart';
 import 'package:silentwallet/theme.dart';
@@ -113,6 +114,57 @@ void main() {
       await t.pumpAndSettle();
       expect(t.widget<TextField>(find.byType(TextField)).controller!.text, 'Zomato dinner');
       expect(find.text('1 result across all dates'), findsOneWidget);
+    });
+  });
+
+  group('Transactions tab and list icons', () {
+    final txs = [sampleTx('1', thisMonth, note: 'Coffee', paise: 12000, categoryId: 'e0')];
+    Finder navItem(String label) =>
+        find.descendant(of: find.byType(NavigationBar), matching: find.text(label));
+
+    testWidgets('tapping Transactions while searching shows the transaction list', (t) async {
+      await _pumpHome(t, txs: txs);
+      await t.tap(find.byTooltip('Search'));
+      await t.pumpAndSettle();
+      expect(find.byType(TextField), findsOneWidget); // search is open
+      await t.tap(navItem('Transactions'));
+      await t.pumpAndSettle();
+      expect(find.byType(TextField), findsNothing); // search closed
+      expect(find.byTooltip('Search'), findsOneWidget); // normal header
+      expect(find.textContaining('Coffee'), findsOneWidget); // the month's list
+    });
+
+    testWidgets('coming back to Transactions from another tab also leaves search', (t) async {
+      await _pumpHome(t, txs: txs);
+      await t.tap(find.byTooltip('Search'));
+      await t.pumpAndSettle();
+      await t.tap(navItem('Reports'));
+      await t.pumpAndSettle();
+      await t.tap(navItem('Transactions'));
+      await t.pumpAndSettle();
+      expect(find.byType(TextField), findsNothing);
+      expect(find.textContaining('Coffee'), findsOneWidget);
+    });
+
+    testWidgets('search text and filters are cleared when the tab is tapped', (t) async {
+      await _pumpHome(t, txs: txs);
+      await t.tap(find.byTooltip('Search'));
+      await t.pumpAndSettle();
+      await t.enterText(find.byType(TextField), 'coffee');
+      await t.pumpAndSettle();
+      await t.tap(navItem('Transactions'));
+      await t.pumpAndSettle();
+      await t.tap(find.byTooltip('Search'));
+      await t.pumpAndSettle();
+      expect(t.widget<TextField>(find.byType(TextField)).controller!.text, isEmpty);
+    });
+
+    testWidgets('list category icons match the size used on the Add page', (t) async {
+      await _pumpHome(t, txs: txs);
+      final row = find.byType(TxTile);
+      expect(row, findsOneWidget);
+      final icon = t.widget<Icon>(find.descendant(of: row, matching: find.byType(Icon)).first);
+      expect(icon.size, kCategoryIconSize);
     });
   });
 

@@ -272,31 +272,29 @@ void main() {
       expect(_pad('done'), findsNothing);
     });
 
-    testWidgets('globe switches the amount to the phone keyboard', (t) async {
+    testWidgets('the keypad has no globe button and uses the app theme', (t) async {
       await _pump(t, const Size(393, 851));
-      await t.tap(_pad('globe'));
-      await t.pumpAndSettle();
-      expect(_pad('done'), findsNothing);
-      final f = t.widget<TextField>(_amountField);
-      expect(f.keyboardType, const TextInputType.numberWithOptions(decimal: true));
-      expect(f.readOnly, isFalse);
-      expect(f.focusNode!.hasFocus, isTrue);
-      // the phone keyboard only lets a valid amount through
-      Future<String> type(String v) async {
-        await t.enterText(_amountField, v);
-        await t.pump();
-        return _amountText(t);
-      }
+      expect(_pad('globe'), findsNothing);
+      expect(find.byIcon(Icons.language), findsNothing);
+      // coloured from the app theme, not a fixed dark panel
+      final cs = Theme.of(t.element(_pad('done'))).colorScheme;
+      final doneMaterial = t.widget<Material>(
+          find.ancestor(of: _pad('done'), matching: find.byType(Material)).first);
+      expect(doneMaterial.color, cs.primary);
+      final digit = t.widget<Material>(
+          find.ancestor(of: _pad('5'), matching: find.byType(Material)).first);
+      expect(digit.color, cs.surfaceContainerHighest);
+      final panel = t.widget<Container>(find
+          .ancestor(of: _pad('5'), matching: find.byType(Container))
+          .last);
+      expect(panel.color, cs.surfaceContainer);
+    });
 
-      expect(await type('1234.5'), '1234.5');
-      expect(await type('1234.567'), '1234.5');
-      expect(await type('12a'), '1234.5');
-      expect(await type('150,75'), '150.75'); // comma becomes the decimal point
-      // its Done key goes to the note, like the in-app one
-      await t.testTextInput.receiveAction(TextInputAction.done);
-      await t.pumpAndSettle();
-      expect(t.widget<TextField>(_noteField).focusNode!.hasFocus, isTrue);
-      expect(tester(t), isNull);
+    testWidgets('the amount can only be typed on the keypad (no phone keyboard)', (t) async {
+      await _pump(t, const Size(393, 851));
+      final f = t.widget<TextField>(_amountField);
+      expect(f.readOnly, isTrue);
+      expect(f.keyboardType, TextInputType.none);
     });
 
     testWidgets('editing: opens without the keypad, with the amount filled in', (t) async {
@@ -412,6 +410,13 @@ void main() {
   });
 
   group('categories and accounts', () {
+    testWidgets('category tag icons use the shared icon size', (t) async {
+      await _pump(t, const Size(393, 851));
+      final tag = find.ancestor(of: find.text('Groceries'), matching: find.byType(InkWell)).first;
+      final icon = t.widget<Icon>(find.descendant(of: tag, matching: find.byType(Icon)).first);
+      expect(icon.size, kCategoryIconSize);
+    });
+
     testWidgets('income shows its own categories, transfer shows none', (t) async {
       await _pump(t, const Size(393, 851));
       await t.tap(find.text('Income'));

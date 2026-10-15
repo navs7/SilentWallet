@@ -349,13 +349,13 @@ class TxTile extends StatelessWidget {
     ].join(' • ');
     return ListTile(
       leading: CircleAvatar(
-        radius: 19,
+        radius: 16,
         backgroundColor: isTransfer
             ? Theme.of(context).colorScheme.primaryContainer
             : Color(cat?.color ?? 0xFF90A4AE),
         child: Icon(
           isTransfer ? Icons.swap_horiz : (cat?.iconData ?? Icons.category),
-          size: 21,
+          size: kCategoryIconSize,
           color: isTransfer
               ? Theme.of(context).colorScheme.onPrimaryContainer
               : Colors.white,

@@ -4,6 +4,10 @@ enum TxType { expense, income, transfer }
 
 enum Frequency { daily, weekly, monthly, yearly }
 
+/// Size of a category's icon wherever it is shown next to a transaction or a
+/// category tag, so the Add page and the transaction list match.
+const double kCategoryIconSize = 14;
+
 /// Icons a user can pick for a category. Stored by index-stable key.
 const categoryIcons = <String, IconData>{
   'restaurant': Icons.restaurant,

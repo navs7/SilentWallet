@@ -75,7 +75,12 @@ class _HomeScreenState extends State<HomeScreen> {
             : null,
         bottomNavigationBar: NavigationBar(
           selectedIndex: _tab,
-          onDestinationSelected: (i) => setState(() => _tab = i),
+          onDestinationSelected: (i) {
+            // Tapping Transactions always shows the transaction list, even
+            // if a search was open.
+            if (i == 0) _searchOpen.value = false;
+            setState(() => _tab = i);
+          },
           destinations: [
             const NavigationDestination(
               icon: Icon(Icons.receipt_long),

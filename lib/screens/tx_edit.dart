@@ -33,8 +33,6 @@ class _TxEditScreenState extends State<TxEditScreen> {
   final _scroll = ScrollController();
   bool _padOpen = false; // in-app amount keypad showing
   bool _calc = false; // calculator row shown on the keypad
-  bool _phoneKeyboard = false; // amount typed on the phone's own keyboard
-  bool _switchingKeyboard = false;
   final _noteCtl = TextEditingController();
   final _noteFocus = FocusNode();
   List<NoteEntry> _history = []; // notes used before, for suggestions
@@ -98,13 +96,7 @@ class _TxEditScreenState extends State<TxEditScreen> {
 
   void _onAmountFocus() {
     if (!mounted) return;
-    setState(() {
-      if (_amountFocus.hasFocus) {
-        if (!_phoneKeyboard) _padOpen = true;
-      } else if (!_switchingKeyboard) {
-        _phoneKeyboard = false;
-      }
-    });
+    if (_amountFocus.hasFocus) setState(() => _padOpen = true);
   }
 
   void _onNoteFocus() {
@@ -141,23 +133,6 @@ class _TxEditScreenState extends State<TxEditScreen> {
     _amountFocus.unfocus();
   }
 
-  /// Switch the amount to the phone's own (numeric) keyboard for this entry.
-  void _usePhoneKeyboard() {
-    final e = AmountEntry(_amountCtl.text);
-    if (e.hasOperator && e.equals()) _setAmountText(e.text);
-    setState(() {
-      _phoneKeyboard = true;
-      _padOpen = false;
-      _switchingKeyboard = true;
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _amountFocus.unfocus();
-      _amountFocus.requestFocus();
-      _switchingKeyboard = false;
-    });
-  }
-
   /// Done: work out any calculation, then go to the note with the phone
   /// keyboard open (the page scrolls so the note and Save sit above it).
   void _amountDone() {
@@ -167,10 +142,7 @@ class _TxEditScreenState extends State<TxEditScreen> {
       return;
     }
     if (e.hasOperator) _setAmountText(formatAmount(e.value!));
-    setState(() {
-      _padOpen = false;
-      _phoneKeyboard = false;
-    });
+    setState(() => _padOpen = false);
     _amountFocus.unfocus();
     // The note field only exists once the keypad is gone, so focus it after
     // the next frame.
@@ -481,7 +453,7 @@ class _TxEditScreenState extends State<TxEditScreen> {
         ? 'Today'
         : DateFormat('d MMM yy').format(_date);
 
-    final showPad = _padOpen && !_phoneKeyboard;
+    final showPad = _padOpen;
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -508,7 +480,7 @@ class _TxEditScreenState extends State<TxEditScreen> {
                 box.maxHeight + (keyboard > 0 ? keyboard - navBar : 0);
             final padRows = _calc ? 5 : 4;
             // Everything above the keypad is ~190px; keep >=130px for tags.
-            final rowH = ((fullH - 190 - 130 - 34) / padRows).clamp(38.0, 50.0);
+            final rowH = ((fullH - 190 - 130 - 44) / padRows).clamp(38.0, 50.0);
             if (keyboard > 0 && _noteFocus.hasFocus) {
               // Scroll up so note, date, receipt and Save sit above the keyboard.
               WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -575,20 +547,13 @@ class _TxEditScreenState extends State<TxEditScreen> {
                                     controller: _amountCtl,
                                     focusNode: _amountFocus,
                                     autofocus: widget.existing == null,
-                                    readOnly: !_phoneKeyboard,
+                                    readOnly: true,
                                     showCursor: true,
                                     enableInteractiveSelection: false,
-                                    keyboardType: _phoneKeyboard
-                                        ? const TextInputType.numberWithOptions(
-                                            decimal: true,
-                                          )
-                                        : TextInputType.none,
+                                    keyboardType: TextInputType
+                                        .none, // the in-app keypad is used
                                     textInputAction: TextInputAction.done,
-                                    inputFormatters: _phoneKeyboard
-                                        ? [_AmountFormatter()]
-                                        : const [],
                                     textAlign: TextAlign.right,
-                                    onSubmitted: (_) => _amountDone(),
                                     style: TextStyle(
                                       fontSize: 32,
                                       fontWeight: FontWeight.w600,
@@ -774,7 +739,6 @@ class _TxEditScreenState extends State<TxEditScreen> {
                         onDone: _amountDone,
                         onEquals: _equals,
                         onClose: _closePad,
-                        onPhoneKeyboard: _usePhoneKeyboard,
                         onToggleCalculator: () =>
                             setState(() => _calc = !_calc),
                       ),
@@ -934,7 +898,7 @@ class _Tag extends StatelessWidget {
                 if (tier.icon) ...[
                   Icon(
                     category.iconData,
-                    size: 14,
+                    size: kCategoryIconSize,
                     color: Color(category.color),
                   ),
                   const SizedBox(width: 4),
@@ -954,20 +918,5 @@ class _Tag extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-/// Digits with at most one decimal point and two decimals (e.g. 1234.56).
-/// A comma from a locale keyboard is treated as the decimal point.
-class _AmountFormatter extends TextInputFormatter {
-  static final _valid = RegExp(r'^\d{0,9}(\.\d{0,2})?$');
-
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    final text = newValue.text.replaceAll(',', '.');
-    return _valid.hasMatch(text) ? newValue.copyWith(text: text) : oldValue;
   }
 }
