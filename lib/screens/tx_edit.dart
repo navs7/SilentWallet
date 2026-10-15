@@ -1,7 +1,7 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import 'package:provider/provider.dart';
@@ -25,7 +25,8 @@ class TxEditScreen extends StatefulWidget {
 
 class _TxEditScreenState extends State<TxEditScreen> {
   late TxType _type;
-  String _amount = '';
+  final _amountCtl = TextEditingController();
+  final _amountFocus = FocusNode();
   final _noteCtl = TextEditingController();
   final _noteFocus = FocusNode();
   List<NoteEntry> _history = []; // notes used before, for suggestions
@@ -53,7 +54,7 @@ class _TxEditScreenState extends State<TxEditScreen> {
       } else if (s.endsWith('0')) {
         s = s.substring(0, s.length - 1);
       }
-      _amount = s;
+      _amountCtl.text = s;
     }
     _noteCtl.text = t?.note ?? '';
     _categoryId = t?.categoryId;
@@ -76,42 +77,16 @@ class _TxEditScreenState extends State<TxEditScreen> {
   void dispose() {
     _noteCtl.dispose();
     _noteFocus.dispose();
+    _amountCtl.dispose();
+    _amountFocus.dispose();
     super.dispose();
   }
 
-  // ---------- amount pad ----------
-  void _key(String k) {
-    setState(() {
-      if (k == '<') {
-        if (_amount.isNotEmpty) {
-          _amount = _amount.substring(0, _amount.length - 1);
-        }
-        return;
-      }
-      if (k == '.') {
-        if (_amount.contains('.')) return;
-        if (_amount.isEmpty) _amount = '0';
-        _amount += '.';
-        return;
-      }
-      final dot = _amount.indexOf('.');
-      if (dot >= 0 && _amount.length - dot > 2) return; // max 2 decimals
-      if (dot < 0 && _amount.length >= 9) return;
-      _amount = _amount == '0' ? k : _amount + k;
-    });
+  // ---------- amount ----------
+  int? get _amountPaise {
+    final t = _amountCtl.text.trim();
+    return parseAmount(t.endsWith('.') ? t.substring(0, t.length - 1) : t);
   }
-
-  String get _amountText {
-    if (_amount.isEmpty) return '0';
-    final parts = _amount.split('.');
-    final whole = NumberFormat.decimalPattern('en_IN')
-        .format(parts[0].isEmpty ? 0 : int.parse(parts[0]));
-    return parts.length > 1 ? '$whole.${parts[1]}' : whole;
-  }
-
-  int? get _amountPaise => parseAmount(
-    _amount.endsWith('.') ? _amount.substring(0, _amount.length - 1) : _amount,
-  );
 
   // ---------- note / date / receipt ----------
   Future<void> _pickDate() async {
@@ -297,7 +272,7 @@ class _TxEditScreenState extends State<TxEditScreen> {
       focusNode: _noteFocus,
       optionsViewOpenDirection: OptionsViewOpenDirection.up,
       displayStringForOption: (e) => e.note,
-      optionsBuilder: (v) => rankNotes(_history, v.text),
+      optionsBuilder: (v) => rankNotes(_history, v.text, limit: 30),
       onSelected: (e) {
         // Re-use the category this note had last time, if none is chosen yet.
         if (_categoryId == null &&
@@ -310,9 +285,11 @@ class _TxEditScreenState extends State<TxEditScreen> {
       fieldViewBuilder: (context, ctl, focus, onSubmit) => SizedBox(
         height: 42,
         child: TextField(
+          key: const Key('note-field'),
           controller: ctl,
           focusNode: focus,
           maxLines: 1,
+          keyboardType: TextInputType.text, // normal keyboard for notes
           textInputAction: TextInputAction.done,
           textCapitalization: TextCapitalization.sentences,
           style: const TextStyle(fontSize: 15),
@@ -336,12 +313,14 @@ class _TxEditScreenState extends State<TxEditScreen> {
           clipBehavior: Clip.antiAlias,
           child: ConstrainedBox(
             constraints: BoxConstraints(
-              maxHeight: 6 * 40.0,
+              maxHeight: 4.5 * 44.0, // fixed area; scroll for more
               maxWidth: MediaQuery.sizeOf(context).width - 24,
             ),
             child: ListView.builder(
+              key: const Key('note-suggestions'),
               padding: EdgeInsets.zero,
               shrinkWrap: true,
+              itemExtent: 44,
               itemCount: options.length,
               itemBuilder: (context, i) {
                 final e = options.elementAt(i);
@@ -367,16 +346,6 @@ class _TxEditScreenState extends State<TxEditScreen> {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        if (e.count > 1) ...[
-                          const SizedBox(width: 8),
-                          Text(
-                            'x${e.count}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: cs.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
                       ],
                     ),
                   ),
@@ -386,54 +355,6 @@ class _TxEditScreenState extends State<TxEditScreen> {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _padKey(String k, {IconData? icon}) {
-    final cs = Theme.of(context).colorScheme;
-    return Expanded(
-      child: Padding(
-        padding: const EdgeInsets.all(2),
-        child: Material(
-          color: cs.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(10),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(10),
-            onTap: () => _key(k),
-            onLongPress: k == '<' ? () => setState(() => _amount = '') : null,
-            child: Center(
-              child: icon != null
-                  ? Icon(icon, size: 22)
-                  : Text(
-                      k,
-                      style: const TextStyle(
-                        fontSize: 21,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _keypad(double keyHeight) {
-    Widget row(List<Widget> keys) => SizedBox(
-      height: keyHeight,
-      child: Row(children: keys),
-    );
-    return Column(
-      children: [
-        row([_padKey('1'), _padKey('2'), _padKey('3')]),
-        row([_padKey('4'), _padKey('5'), _padKey('6')]),
-        row([_padKey('7'), _padKey('8'), _padKey('9')]),
-        row([
-          _padKey('.'),
-          _padKey('0'),
-          _padKey('<', icon: Icons.backspace_outlined),
-        ]),
-      ],
     );
   }
 
@@ -482,16 +403,13 @@ class _TxEditScreenState extends State<TxEditScreen> {
         child: LayoutBuilder(
           builder: (context, box) {
             // With the system keyboard closed the page is a fixed layout that
-            // does not scroll. While typing a note the keyboard covers the
+            // does not scroll. While the system keyboard is open it covers the
             // lower part, so the same layout becomes scrollable to reach it.
             final view = View.of(context);
             final keyboard = view.viewInsets.bottom / view.devicePixelRatio;
             final navBar = view.padding.bottom / view.devicePixelRatio;
             final fullH =
                 box.maxHeight + (keyboard > 0 ? keyboard - navBar : 0);
-            // Everything except the pad and the categories is roughly 280px.
-            // Give categories at least ~130px; the pad shrinks on short screens.
-            final keyH = ((fullH - 280 - 130) / 4).clamp(34.0, 46.0);
             return SingleChildScrollView(
               physics: keyboard > 0
                   ? const ClampingScrollPhysics()
@@ -528,28 +446,49 @@ class _TxEditScreenState extends State<TxEditScreen> {
                         ),
                       ),
                       const SizedBox(height: 6),
-                      // Amount display
+                      // Amount: numeric keyboard with a decimal point
                       Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
                         decoration: BoxDecoration(
                           color: cs.surfaceContainerLow,
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.centerRight,
-                          child: Text(
-                            '₹ $_amountText',
-                            style: TextStyle(
-                              fontSize: 34,
+                        child: TextField(
+                          key: const Key('amount-field'),
+                          controller: _amountCtl,
+                          focusNode: _amountFocus,
+                          autofocus: widget.existing == null,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          textInputAction: TextInputAction.done,
+                          inputFormatters: [_AmountFormatter()],
+                          textAlign: TextAlign.right,
+                          onSubmitted: (_) => _amountFocus.unfocus(),
+                          onTapOutside: (_) => _amountFocus.unfocus(),
+                          style: TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.w600,
+                            color: amountColor,
+                          ),
+                          decoration: InputDecoration(
+                            prefixText: '₹ ',
+                            prefixStyle: TextStyle(
+                              fontSize: 32,
                               fontWeight: FontWeight.w600,
-                              color: _amount.isEmpty
-                                  ? cs.onSurfaceVariant
-                                  : amountColor,
+                              color: cs.onSurfaceVariant,
+                            ),
+                            hintText: '0',
+                            hintStyle: TextStyle(
+                              fontSize: 32,
+                              fontWeight: FontWeight.w600,
+                              color: cs.onSurfaceVariant,
+                            ),
+                            border: InputBorder.none,
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(
+                              vertical: 10,
                             ),
                           ),
                         ),
@@ -651,9 +590,7 @@ class _TxEditScreenState extends State<TxEditScreen> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 4),
-                      _keypad(keyH),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 8),
                       SizedBox(
                         width: double.infinity,
                         height: 44,
@@ -842,5 +779,20 @@ class _Tag extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// Digits with at most one decimal point and two decimals (e.g. 1234.56).
+/// A comma from a locale keyboard is treated as the decimal point.
+class _AmountFormatter extends TextInputFormatter {
+  static final _valid = RegExp(r'^\d{0,9}(\.\d{0,2})?$');
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final text = newValue.text.replaceAll(',', '.');
+    return _valid.hasMatch(text) ? newValue.copyWith(text: text) : oldValue;
   }
 }

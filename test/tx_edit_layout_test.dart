@@ -15,6 +15,8 @@ import 'package:silentwallet/theme.dart';
 import 'test_support.dart';
 
 const _defaultExpense = defaultExpenseNames;
+final _noteField = find.byKey(const Key('note-field'));
+final _amountField = find.byKey(const Key('amount-field'));
 
 FakeRepo _repo({int extraCustom = 0, List<Account>? accounts, List<Tx> txs = const []}) {
   final r = FakeRepo(txs: txs);
@@ -28,7 +30,7 @@ Future<void> _pump(WidgetTester t, Size size,
     double bottom = 24,
     int extra = 0,
     List<Account>? accounts,
-    List<Tx> txs = const []}) async {
+    List<Tx> txs = const [], Tx? existing}) async {
   SharedPreferences.setMockInitialValues({});
   final settings = await Settings.load();
   final lock = LockController(settings);
@@ -53,7 +55,7 @@ Future<void> _pump(WidgetTester t, Size size,
         textTheme: buildTheme(Brightness.light).textTheme.apply(fontFamily: 'Roboto'),
       ),
       builder: compactText,
-      home: const TxEditScreen(),
+      home: TxEditScreen(existing: existing),
     ),
   ));
   await t.pumpAndSettle();
@@ -90,7 +92,7 @@ void main() {
       expect(_pageScrollExtent(t), 0, reason: 'page must not scroll');
       expect(find.byType(SingleChildScrollView), findsOneWidget); // just the page shell
       // the note field is on the page, fully visible
-      final note = find.byType(TextField);
+      final note = _noteField;
       expect(note, findsOneWidget);
       expect(t.getRect(note).bottom, lessThanOrEqualTo(p.$2.height - p.$4));
       expect(find.text('Add a note'), findsOneWidget);
@@ -130,15 +132,15 @@ void main() {
     expect(_pageScrollExtent(t), 0);
     t.view.viewInsets = const FakeViewPadding(bottom: 320);
     addTearDown(t.view.resetViewInsets);
-    await t.tap(find.byType(TextField));
+    await t.tap(_noteField);
     await t.pumpAndSettle();
     expect(tester(t), isNull);
-    await t.enterText(find.byType(TextField), 'Dinner with friends');
+    await t.enterText(_noteField, 'Dinner with friends');
     await t.pumpAndSettle();
     expect(find.text('Dinner with friends'), findsOneWidget);
     expect(_pageScrollExtent(t), greaterThan(0)); // keyboard => scrollable
     // the note field is above the keyboard
-    expect(t.getRect(find.byType(TextField)).bottom, lessThanOrEqualTo(851 - 320));
+    expect(t.getRect(_noteField).bottom, lessThanOrEqualTo(851 - 320));
     // closing the keyboard restores the fixed, non-scrolling page
     t.view.viewInsets = FakeViewPadding.zero;
     await t.pumpAndSettle();
@@ -157,29 +159,29 @@ void main() {
     t.view.viewInsets = const FakeViewPadding(bottom: 320);
     addTearDown(t.view.resetViewInsets);
     // focusing the empty field lists recent notes
-    await t.tap(find.byType(TextField));
+    await t.tap(_noteField);
     await t.pumpAndSettle();
     expect(tester(t), isNull);
     expect(find.text('Uber ride'), findsOneWidget);
     // typing narrows the list; most used first
-    await t.enterText(find.byType(TextField), 'zom');
+    await t.enterText(_noteField, 'zom');
     await t.pumpAndSettle();
     expect(find.text('Zomato dinner'), findsOneWidget);
     expect(find.text('Zomato lunch'), findsOneWidget);
     expect(find.text('Uber ride'), findsNothing);
     expect(t.getRect(find.text('Zomato dinner')).bottom,
-        lessThan(t.getRect(find.byType(TextField)).top)); // above the field
+        lessThan(t.getRect(_noteField).top)); // above the field
     // choosing one fills the note
     await t.tap(find.text('Zomato dinner'));
     await t.pumpAndSettle();
-    final field = t.widget<TextField>(find.byType(TextField));
+    final field = t.widget<TextField>(_noteField);
     expect(field.controller!.text, 'Zomato dinner');
     expect(find.text('Zomato lunch'), findsNothing); // list closed
   });
 
   testWidgets('no suggestions when there is no history yet', (t) async {
     await _pump(t, const Size(393, 851));
-    await t.tap(find.byType(TextField));
+    await t.tap(_noteField);
     await t.pumpAndSettle();
     expect(find.byIcon(Icons.history), findsNothing);
   });
@@ -200,16 +202,68 @@ void main() {
     expect(dd.initialValue, 'a1'); // Cash, first in the sample list
   });
 
-  testWidgets('number pad builds the amount with two decimals max', (t) async {
+  testWidgets('amount uses the numeric keyboard, notes the normal one; no on-screen pad', (t) async {
     await _pump(t, const Size(393, 851));
-    for (final k in ['1', '2', '3', '4', '.', '5', '6', '7']) {
-      await t.tap(find.text(k).first);
+    final amount = t.widget<TextField>(_amountField);
+    expect(amount.keyboardType, const TextInputType.numberWithOptions(decimal: true));
+    final note = t.widget<TextField>(_noteField);
+    expect(note.keyboardType, TextInputType.text);
+    expect(find.byIcon(Icons.backspace_outlined), findsNothing); // old pad is gone
+    expect(find.text('7'), findsNothing);
+  });
+
+  testWidgets('amount accepts only a valid amount', (t) async {
+    await _pump(t, const Size(393, 851));
+    Future<String> type(String v) async {
+      await t.enterText(_amountField, v);
+      await t.pump();
+      return t.widget<TextField>(_amountField).controller!.text;
     }
-    await t.pump();
-    expect(find.text('₹ 1,234.56'), findsOneWidget); // 3rd decimal ignored
-    await t.tap(find.byIcon(Icons.backspace_outlined));
-    await t.pump();
-    expect(find.text('₹ 1,234.5'), findsOneWidget);
+
+    expect(await type('1234.5'), '1234.5');
+    expect(await type('1234.567'), '1234.5'); // 3rd decimal rejected
+    expect(await type('12a'), '1234.5'); // letters rejected
+    expect(await type('1.2.3'), '1234.5'); // second dot rejected
+    expect(await type('150,75'), '150.75'); // comma keyboards: becomes the point
+    expect(await type('1234567890'), '150.75'); // too many digits
+  });
+
+  testWidgets('a new transaction focuses the amount; editing one does not', (t) async {
+    await _pump(t, const Size(393, 851));
+    expect(t.widget<TextField>(_amountField).focusNode!.hasFocus, isTrue);
+    await t.pumpWidget(const SizedBox());
+    await _pump(t, const Size(393, 851),
+        existing: sampleTx('9', DateTime(2026, 3, 1), paise: 25050, note: 'Taxi'));
+    expect(t.widget<TextField>(_amountField).controller!.text, '250.5');
+    expect(t.widget<TextField>(_amountField).focusNode!.hasFocus, isFalse);
+    expect(t.widget<TextField>(_noteField).controller!.text, 'Taxi');
+  });
+
+  testWidgets('suggestions are plain text (no usage counts) in a fixed, scrollable list', (t) async {
+    final txs = [
+      for (var i = 0; i < 25; i++)
+        sampleTx('n$i', DateTime(2026, 1, 1 + i), note: 'Note number ${i.toString().padLeft(2, '0')}'),
+      // used several times: must NOT show a count
+      sampleTx('r1', DateTime(2026, 2, 10), note: 'Repeat note'),
+      sampleTx('r2', DateTime(2026, 2, 11), note: 'Repeat note'),
+      sampleTx('r3', DateTime(2026, 2, 12), note: 'Repeat note'),
+    ];
+    await _pump(t, const Size(393, 851), txs: txs);
+    t.view.viewInsets = const FakeViewPadding(bottom: 320);
+    addTearDown(t.view.resetViewInsets);
+    await t.tap(_noteField);
+    await t.pumpAndSettle();
+    expect(tester(t), isNull);
+    final list = find.byKey(const Key('note-suggestions'));
+    expect(list, findsOneWidget);
+    expect(find.textContaining(RegExp(r'x\d')), findsNothing);
+    expect(find.text('Repeat note'), findsOneWidget);
+    expect(t.getSize(list).height, lessThanOrEqualTo(4.5 * 44 + 0.5)); // fixed area
+    // the oldest note is not on screen until the list is scrolled
+    expect(find.text('Note number 00'), findsNothing);
+    await t.drag(list, const Offset(0, -3000));
+    await t.pumpAndSettle();
+    expect(find.text('Note number 00'), findsOneWidget);
   });
 
   testWidgets('tags shrink to fit when there are many custom categories', (t) async {
