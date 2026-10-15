@@ -1,7 +1,4 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -19,19 +16,6 @@ const _defaultExpense = defaultExpenseNames;
 final _noteField = find.byKey(const Key('note-field'));
 final _amountField = find.byKey(const Key('amount-field'));
 Finder _pad(String id) => find.byKey(Key('pad-$id'));
-
-/// Flutter tests draw text with a placeholder font whose letters are as wide as
-/// they are tall. Load the real Roboto so tag widths match a phone.
-Future<void> _loadRoboto() async {
-  final root = Platform.environment['FLUTTER_ROOT'] ?? 'C:/dev/flutter';
-  final dir = Directory('$root/bin/cache/artifacts/material_fonts');
-  final loader = FontLoader('Roboto');
-  for (final name in ['roboto-regular.ttf', 'roboto-medium.ttf', 'roboto-bold.ttf']) {
-    final f = File('${dir.path}/$name');
-    if (f.existsSync()) loader.addFont(Future.value(ByteData.sublistView(f.readAsBytesSync())));
-  }
-  await loader.load();
-}
 
 FakeRepo _repo({int extraCustom = 0, List<Account>? accounts, List<Tx> txs = const []}) {
   final r = FakeRepo(txs: txs);
@@ -64,14 +48,13 @@ Future<FakeRepo> _pump(
     t.view.resetPadding();
     t.view.resetViewPadding();
   });
-  final base = buildTheme(Brightness.light);
   await t.pumpWidget(MultiProvider(
     providers: [
       ChangeNotifierProvider<Repo>.value(value: repo),
       ChangeNotifierProvider<LockController>.value(value: lock),
     ],
     child: MaterialApp(
-      theme: base.copyWith(textTheme: base.textTheme.apply(fontFamily: 'Roboto')),
+      theme: buildTheme(Brightness.light),
       builder: compactText,
       // '/' underneath so Save can pop back like in the real app
       initialRoute: '/add',
@@ -109,7 +92,7 @@ double _pageScrollExtent(WidgetTester t) =>
 Object? tester(WidgetTester t) => t.takeException();
 
 void main() {
-  setUpAll(_loadRoboto);
+  setUpAll(loadAppFonts);
 
   const phones = <(String, Size, double, double)>[
     ('compact 360x640', Size(360, 640), 28.0, 24.0),

@@ -11,6 +11,7 @@ import '../core/models.dart';
 import '../core/repo.dart';
 import '../core/search.dart';
 import '../services/lock.dart';
+import '../theme.dart';
 import '../util.dart';
 import 'amount_pad.dart';
 
@@ -719,6 +720,8 @@ class _TxEditScreenState extends State<TxEditScreen> {
                                   style: TextStyle(
                                     fontSize: 32,
                                     fontWeight: FontWeight.w600,
+                                    letterSpacing: -0.5,
+                                    fontFeatures: kTabularFigures,
                                     color: amountColor,
                                   ),
                                   decoration: InputDecoration(

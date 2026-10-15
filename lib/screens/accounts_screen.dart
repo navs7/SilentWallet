@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../core/models.dart';
 import '../core/repo.dart';
+import '../theme.dart';
 import '../util.dart';
 import 'categories_screen.dart';
 
@@ -33,7 +34,10 @@ class AccountsScreen extends StatelessWidget {
                     Text(
                       money(total),
                       style: Theme.of(context).textTheme.headlineSmall
-                          ?.copyWith(fontWeight: FontWeight.w600),
+                          ?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            fontFeatures: kTabularFigures,
+                          ),
                     ),
                   ],
                 ),
@@ -70,7 +74,10 @@ class AccountsScreen extends StatelessWidget {
                 subtitle: Text(a.isDefault ? '${a.type} · Default' : a.type),
                 trailing: Text(
                   money(bal[a.id] ?? a.openingBalance),
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontFeatures: kTabularFigures,
+                  ),
                 ),
                 onTap: () => showAccountEditor(context, a),
               ),

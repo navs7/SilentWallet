@@ -85,6 +85,10 @@ lib/
 test/                    unit tests (money, recurring dates, models, encryption)
 ```
 
+## Fonts
+
+The app uses [Inter](https://github.com/rsms/inter), bundled in `assets/fonts` (SIL Open Font License; the licence text is in `assets/fonts/Inter-OFL.txt`), so it looks the same everywhere and needs no internet. `lib/theme.dart` holds the type scale. `flutter test tool/preview/font_preview_test.dart` renders before/after pictures into `build/preview/`.
+
 ## Tests
 
 `flutter test` runs unit tests for money parsing/formatting, recurring-date rules (month-end and leap years), model serialisation, and the encryption and backup format (wrong password, tampering, truncated files). Database-backed behaviour (balances, recurring catch-up, full restore) and the UI/biometric flows are checked manually on a device.

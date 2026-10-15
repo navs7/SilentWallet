@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../core/models.dart';
 import '../core/repo.dart';
+import '../theme.dart';
 import '../util.dart';
 
 enum _Mode { month, year, custom, all }
@@ -351,8 +352,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
         FittedBox(
           child: Text(
             money(v, compact: true),
-            style: Theme.of(context).textTheme.titleMedium
-                ?.copyWith(color: c, fontWeight: FontWeight.w600),
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: c,
+              fontWeight: FontWeight.w600,
+              fontFeatures: kTabularFigures,
+            ),
           ),
         ),
       ],
@@ -425,6 +429,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
+                    fontFeatures: kTabularFigures,
                   ),
                 ),
               ),

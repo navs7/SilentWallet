@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../core/models.dart';
 import '../core/repo.dart';
 import '../core/search.dart';
+import '../theme.dart';
 import '../util.dart';
 import 'search_filter_sheet.dart';
 import 'tx_edit.dart';
@@ -241,7 +242,12 @@ class _TxListScreenState extends State<TxListScreen> {
                       child: Row(
                         children: [
                           Expanded(child: Text(dayLabel(d), style: headStyle)),
-                          Text(money(net), style: headStyle),
+                          Text(
+                            money(net),
+                            style: headStyle?.copyWith(
+                              fontFeatures: kTabularFigures,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -328,8 +334,11 @@ class _Stat extends StatelessWidget {
         FittedBox(
           child: Text(
             money(paise, compact: true),
-            style: Theme.of(context).textTheme.titleMedium
-                ?.copyWith(color: color, fontWeight: FontWeight.w600),
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w600,
+              fontFeatures: kTabularFigures,
+            ),
           ),
         ),
       ],
@@ -410,7 +419,8 @@ class TxTile extends StatelessWidget {
             style: TextStyle(
               color: color,
               fontSize: 17,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w600,
+              fontFeatures: kTabularFigures,
             ),
           ),
         ],

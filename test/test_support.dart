@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:flutter/services.dart';
 import 'package:silentwallet/core/models.dart';
 import 'package:silentwallet/core/repo.dart';
 import 'package:silentwallet/core/search.dart';
@@ -128,3 +131,13 @@ Tx sampleTx(String id, DateTime date,
         categoryId: categoryId,
         note: note,
         date: date);
+
+/// Flutter tests draw text with a placeholder font whose letters are as wide as
+/// they are tall. Load the app's real font (Inter) so text sizes in tests match
+/// a phone.
+Future<void> loadAppFonts() async {
+  final f = File('assets/fonts/Inter-Variable.ttf');
+  final loader = FontLoader('Inter')
+    ..addFont(Future.value(ByteData.sublistView(f.readAsBytesSync())));
+  await loader.load();
+}
