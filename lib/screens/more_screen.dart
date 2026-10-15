@@ -102,7 +102,7 @@ class MoreScreen extends StatelessWidget {
       const ListTile(
         leading: Icon(Icons.info_outline),
         title: Text('Silent Wallet'),
-        subtitle: Text('Version 1.0.5'),
+        subtitle: Text('Version 1.0.6'),
       ),
     ]);
   }
