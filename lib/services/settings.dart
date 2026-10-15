@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -18,6 +20,9 @@ class Settings extends ChangeNotifier {
   bool get dailyReminder => _p.getBool('daily_reminder') ?? true;
   int get reminderHour => _p.getInt('reminder_hour') ?? 20;
   int get reminderMinute => _p.getInt('reminder_minute') ?? 0;
+
+  /// Picks the order of the quirky reminder messages (random per install).
+  int get reminderSeed => _p.getInt('reminder_seed') ?? 0;
   bool get reminderPermissionAsked => _p.getBool('reminder_asked') ?? false;
   bool get weeklyReminder => _p.getBool('reminder') ?? true;
   DateTime? get lastBackup {
@@ -50,6 +55,13 @@ class Settings extends ChangeNotifier {
     await _p.setInt('reminder_hour', hour);
     await _p.setInt('reminder_minute', minute);
     notifyListeners();
+  }
+
+  /// Creates this install's message seed once (no listeners are notified).
+  Future<void> ensureReminderSeed() async {
+    if (_p.getInt('reminder_seed') == null) {
+      await _p.setInt('reminder_seed', Random.secure().nextInt(1 << 30) + 1);
+    }
   }
 
   Future<void> markReminderPermissionAsked() async {

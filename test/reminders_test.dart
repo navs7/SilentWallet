@@ -13,17 +13,20 @@ import 'test_support.dart';
 
 class FakeBackend implements ReminderBackend {
   final active = <int, DateTime>{};
+  final bodies = <int, String>{};
   final log = <String>[];
 
   @override
   Future<void> cancelAll() async {
     active.clear();
+    bodies.clear();
     log.add('cancel');
   }
 
   @override
-  Future<void> schedule(int slot, DateTime when) async {
+  Future<void> schedule(int slot, DateTime when, String body) async {
     active[slot] = when;
+    bodies[slot] = body;
     log.add('schedule');
   }
 }

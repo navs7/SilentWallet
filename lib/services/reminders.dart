@@ -2,6 +2,7 @@ import 'dart:async';
 
 import '../core/repo.dart';
 import 'notifications.dart';
+import 'reminder_messages.dart';
 import 'settings.dart';
 
 /// The (local) times at which to remind the user: one per day for the next
@@ -27,7 +28,7 @@ List<DateTime> planReminders({
 /// Where reminders are actually scheduled (the phone's notification system).
 abstract class ReminderBackend {
   Future<void> cancelAll();
-  Future<void> schedule(int slot, DateTime when);
+  Future<void> schedule(int slot, DateTime when, String body);
 }
 
 class NotifierBackend implements ReminderBackend {
@@ -35,8 +36,8 @@ class NotifierBackend implements ReminderBackend {
   Future<void> cancelAll() => Notifier.cancelEntryReminders();
 
   @override
-  Future<void> schedule(int slot, DateTime when) =>
-      Notifier.scheduleEntryReminder(slot, when);
+  Future<void> schedule(int slot, DateTime when, String body) =>
+      Notifier.scheduleEntryReminder(slot, when, body);
 }
 
 /// Keeps the daily "add today's entries" reminders up to date.
@@ -67,6 +68,7 @@ class ReminderService {
   /// Start listening for changes, ask for notification permission once (after
   /// the first run) and plan the reminders.
   Future<void> start() async {
+    await settings.ensureReminderSeed();
     settings.addListener(_changed);
     repo.addListener(_changed);
     if (settings.onboarded &&
@@ -112,7 +114,11 @@ class ReminderService {
     );
     await backend.cancelAll();
     for (var i = 0; i < plan.length; i++) {
-      await backend.schedule(i, plan[i]);
+      await backend.schedule(
+        i,
+        plan[i],
+        reminderMessageFor(plan[i], seed: settings.reminderSeed),
+      );
     }
   }
 }

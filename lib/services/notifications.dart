@@ -67,15 +67,6 @@ class Notifier {
   static const _entryBase = 2000;
   static const _entrySlots = 60;
 
-  static const _entryDetails = NotificationDetails(
-    android: AndroidNotificationDetails(
-      'entry_reminder',
-      'Daily entry reminder',
-      channelDescription: "Reminds you to add today's entries",
-      importance: Importance.defaultImportance,
-    ),
-  );
-
   static Future<void> cancelEntryReminders() async {
     try {
       for (var i = 0; i < _entrySlots; i++) {
@@ -85,15 +76,28 @@ class Notifier {
   }
 
   /// Schedules one reminder at the local time [when] (slot 0..59).
-  static Future<void> scheduleEntryReminder(int slot, DateTime when) async {
+  static Future<void> scheduleEntryReminder(
+    int slot,
+    DateTime when,
+    String body,
+  ) async {
     try {
       await _plugin.zonedSchedule(
         id: _entryBase + slot,
         title: 'Silent Wallet',
-        body: 'Anything to add for today? Log your entries before you forget.',
+        body: body,
         // an exact instant; the zone only matters for display
         scheduledDate: tz.TZDateTime.from(when.toUtc(), tz.UTC),
-        notificationDetails: _entryDetails,
+        notificationDetails: NotificationDetails(
+          android: AndroidNotificationDetails(
+            'entry_reminder',
+            'Daily entry reminder',
+            channelDescription: "Reminds you to add today's entries",
+            importance: Importance.defaultImportance,
+            // the whole message shows when the notification is expanded
+            styleInformation: BigTextStyleInformation(body),
+          ),
+        ),
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       );
     } catch (_) {}
