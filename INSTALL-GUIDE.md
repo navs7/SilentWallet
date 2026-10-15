@@ -51,5 +51,5 @@ The app reminds you once a week. Uninstalling the app or clearing its data also 
 
 - No internet permission — Android itself blocks the app from using the network.
 - The database and receipt photos are encrypted (AES-256). The key lives in your phone's secure keystore and never leaves it.
-- Screenshots and the recent-apps preview are blocked inside the app.
+- Screenshots, screen recording and the recent-apps preview are blocked inside the app by default. To take a screenshot, turn on **More → Allow screenshots**, and turn it off again afterwards.
 - The CSV export is **not** encrypted — treat that file carefully.
