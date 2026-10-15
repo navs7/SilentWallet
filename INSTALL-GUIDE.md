@@ -29,6 +29,9 @@ It has no internet permission, no account, no ads and no cloud. Nothing you ente
 | Add an expense, income or transfer | **Add** button (attach a receipt photo if you like) |
 | See where money went | **Reports** tab |
 | Add a bank / cash / UPI account | **Accounts** tab |
+| Type an amount or do a quick sum | The keypad on the **Add** page: tap the calculator key for + − × ÷, then **Done** to go to the note |
+| Find a past transaction | The search icon on **Transactions**: search notes, categories, accounts or amounts, and use **Filters** for time period, account, category and amount range |
+| Choose which account new entries start on | **Accounts** tab → tap an account → **Default account** |
 | Make your own category | **More → Categories** |
 | Automatically record rent, subscriptions, salary | **More → Recurring expenses** |
 

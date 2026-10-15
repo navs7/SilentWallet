@@ -10,6 +10,10 @@ An offline expense manager for Android. **Everything stays on the phone** — no
 
 - Expenses, income and transfers between accounts (Cash, Bank, Card, UPI / Wallet, …)
 - Built-in categories plus your own (custom name, icon and colour)
+- Amount keypad with a built-in calculator (+ − × ÷); transactions saved without a category go under "Other"
+- Note suggestions from your earlier notes
+- A default account that new transactions start on
+- Search across notes, categories, accounts and amounts, with filters for time period, account, category and amount range
 - Recurring rules (daily / weekly / monthly / yearly) that post automatically when due
 - Reports for any month, year, custom date range or all time: income vs expense, category pie chart, monthly trend
 - Receipt photos attached to transactions
