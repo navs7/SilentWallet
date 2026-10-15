@@ -90,6 +90,16 @@ class Account {
   );
 }
 
+/// The built-in "Other" category (or "Others") of the given kind, if present.
+/// Transactions saved without a category are filed under it.
+String? findOtherCategoryId(List<Category> categories, TxType kind) {
+  for (final c in categories) {
+    final n = c.name.trim().toLowerCase();
+    if (c.kind == kind && (n == 'other' || n == 'others')) return c.id;
+  }
+  return null;
+}
+
 /// The account to pre-select for a new transaction: the one marked default
 /// (if it is still active), otherwise the first active account.
 String? defaultAccountId(List<Account> accounts) {

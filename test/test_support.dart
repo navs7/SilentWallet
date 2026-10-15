@@ -28,6 +28,23 @@ class FakeRepo extends Repo {
 
   @override
   Future<int> processRecurring() async => 0;
+
+  /// Transactions saved through the UI (the real Repo would write the DB).
+  final saved = <Tx>[];
+
+  @override
+  Future<void> saveTx(Tx t) async {
+    saved.add(t);
+    txs = [...txs.where((x) => x.id != t.id), t];
+    hasData = true;
+    notifyListeners();
+  }
+
+  @override
+  Future<void> saveCategory(Category c) async {
+    categories = [...categories.where((x) => x.id != c.id), c];
+    notifyListeners();
+  }
 }
 
 const defaultExpenseNames = [

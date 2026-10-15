@@ -251,6 +251,21 @@ class Repo extends ChangeNotifier {
     return true;
   }
 
+  /// The "Other" category for [kind]; created if it was deleted or renamed.
+  Future<String> otherCategoryId(TxType kind) async {
+    final existing = findOtherCategoryId(categories, kind);
+    if (existing != null) return existing;
+    final c = Category(
+      id: newId(),
+      name: 'Other',
+      icon: 'other',
+      color: 0xFF90A4AE,
+      kind: kind,
+    );
+    await saveCategory(c);
+    return c.id;
+  }
+
   // ---------- Transactions ----------
   Future<void> saveTx(Tx t) async {
     await db.insert(
@@ -304,9 +319,14 @@ class Repo extends ChangeNotifier {
   }
 
   /// Search across ALL dates: note, category, account name or amount.
-  Future<List<Tx>> search(String query, {int limit = 500}) async {
+  Future<List<Tx>> search(
+    String query, {
+    SearchFilters? filters,
+    int limit = 500,
+  }) async {
     final out = <Tx>[];
     for (final t in await allTx()) {
+      if (filters != null && !filters.matches(t)) continue;
       if (txMatches(
         t,
         query,
@@ -387,7 +407,16 @@ class Repo extends ChangeNotifier {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     var created = 0;
-    for (final r in recurring.where((r) => r.active)) {
+    // Rules with no category file their transactions under "Other".
+    final other = <TxType, String>{};
+    for (final k in {
+      for (final r in recurring)
+        if (r.active && r.categoryId == null && !r.nextDue.isAfter(today))
+          r.type,
+    }) {
+      other[k] = await otherCategoryId(k); // may reload() the rule list
+    }
+    for (final r in [...recurring].where((r) => r.active)) {
       var changed = false;
       var guard = 0;
       while (!r.nextDue.isAfter(today) && guard++ < 1000) {
@@ -403,7 +432,7 @@ class Repo extends ChangeNotifier {
             type: r.type,
             amount: r.amount,
             accountId: r.accountId,
-            categoryId: r.categoryId,
+            categoryId: r.categoryId ?? other[r.type],
             note: r.title,
             date: r.nextDue,
             recurringId: r.id,

@@ -6,16 +6,19 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import 'package:provider/provider.dart';
 
+import '../core/calc.dart';
 import '../core/models.dart';
 import '../core/repo.dart';
 import '../core/search.dart';
 import '../services/lock.dart';
 import '../util.dart';
+import 'amount_pad.dart';
 
-/// Add / edit transaction. The page is a fixed, non-scrolling layout: the
-/// amount is typed on the built-in number pad (so no system keyboard pushes
-/// things around), the note opens in a small dialog, and the category tags
-/// resize themselves to fit whatever height is left.
+/// Add / edit transaction. The amount is typed on an in-app calculator keypad;
+/// its Done key moves on to the note with the phone keyboard open, and the page
+/// scrolls so the note, date, receipt and Save stay above that keyboard. With no
+/// keyboard showing the page is a fixed layout and the category tags resize to
+/// fit whatever height is left.
 class TxEditScreen extends StatefulWidget {
   final Tx? existing;
   const TxEditScreen({super.key, this.existing});
@@ -27,6 +30,11 @@ class _TxEditScreenState extends State<TxEditScreen> {
   late TxType _type;
   final _amountCtl = TextEditingController();
   final _amountFocus = FocusNode();
+  final _scroll = ScrollController();
+  bool _padOpen = false; // in-app amount keypad showing
+  bool _calc = false; // calculator row shown on the keypad
+  bool _phoneKeyboard = false; // amount typed on the phone's own keyboard
+  bool _switchingKeyboard = false;
   final _noteCtl = TextEditingController();
   final _noteFocus = FocusNode();
   List<NoteEntry> _history = []; // notes used before, for suggestions
@@ -47,6 +55,9 @@ class _TxEditScreenState extends State<TxEditScreen> {
     final t = widget.existing;
     final repo = context.read<Repo>();
     _type = t?.type ?? TxType.expense;
+    _padOpen = t == null; // new transaction: start on the amount keypad
+    _amountFocus.addListener(_onAmountFocus);
+    _noteFocus.addListener(_onNoteFocus);
     if (t != null) {
       var s = (t.amount / 100).toStringAsFixed(2);
       if (s.endsWith('.00')) {
@@ -75,17 +86,97 @@ class _TxEditScreenState extends State<TxEditScreen> {
 
   @override
   void dispose() {
+    _amountFocus.removeListener(_onAmountFocus);
+    _noteFocus.removeListener(_onNoteFocus);
     _noteCtl.dispose();
     _noteFocus.dispose();
     _amountCtl.dispose();
     _amountFocus.dispose();
+    _scroll.dispose();
     super.dispose();
   }
 
+  void _onAmountFocus() {
+    if (!mounted) return;
+    setState(() {
+      if (_amountFocus.hasFocus) {
+        if (!_phoneKeyboard) _padOpen = true;
+      } else if (!_switchingKeyboard) {
+        _phoneKeyboard = false;
+      }
+    });
+  }
+
+  void _onNoteFocus() {
+    if (!mounted) return;
+    if (_noteFocus.hasFocus) setState(() => _padOpen = false);
+  }
+
   // ---------- amount ----------
-  int? get _amountPaise {
-    final t = _amountCtl.text.trim();
-    return parseAmount(t.endsWith('.') ? t.substring(0, t.length - 1) : t);
+  int? get _amountPaise => AmountEntry(_amountCtl.text).paise;
+
+  void _setAmountText(String t) {
+    _amountCtl.value = TextEditingValue(
+      text: t,
+      selection: TextSelection.collapsed(offset: t.length),
+    );
+  }
+
+  void _press(String key) {
+    final e = AmountEntry(_amountCtl.text)..press(key);
+    _setAmountText(e.text);
+  }
+
+  void _equals() {
+    final e = AmountEntry(_amountCtl.text);
+    if (e.equals()) {
+      _setAmountText(e.text);
+    } else if (e.hasOperator) {
+      toast(context, 'Complete the calculation first.');
+    }
+  }
+
+  void _closePad() {
+    setState(() => _padOpen = false);
+    _amountFocus.unfocus();
+  }
+
+  /// Switch the amount to the phone's own (numeric) keyboard for this entry.
+  void _usePhoneKeyboard() {
+    final e = AmountEntry(_amountCtl.text);
+    if (e.hasOperator && e.equals()) _setAmountText(e.text);
+    setState(() {
+      _phoneKeyboard = true;
+      _padOpen = false;
+      _switchingKeyboard = true;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _amountFocus.unfocus();
+      _amountFocus.requestFocus();
+      _switchingKeyboard = false;
+    });
+  }
+
+  /// Done: work out any calculation, then go to the note with the phone
+  /// keyboard open (the page scrolls so the note and Save sit above it).
+  void _amountDone() {
+    final e = AmountEntry(_amountCtl.text);
+    if (e.paise == null) {
+      toast(context, 'Enter an amount greater than 0.');
+      return;
+    }
+    if (e.hasOperator) _setAmountText(formatAmount(e.value!));
+    setState(() {
+      _padOpen = false;
+      _phoneKeyboard = false;
+    });
+    _amountFocus.unfocus();
+    // The note field only exists once the keypad is gone, so focus it after
+    // the next frame.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _noteFocus.requestFocus();
+    });
   }
 
   // ---------- note / date / receipt ----------
@@ -198,6 +289,10 @@ class _TxEditScreenState extends State<TxEditScreen> {
     setState(() => _saving = true);
     final repo = context.read<Repo>();
     final old = widget.existing;
+    // No category chosen: file it under "Other" instead of "Uncategorized".
+    final categoryId = _type == TxType.transfer
+        ? null
+        : (_categoryId ?? await repo.otherCategoryId(_type));
     String? receipt = _receiptName;
     if (_newReceipt != null) {
       receipt = await repo.saveReceipt(_newReceipt!);
@@ -213,7 +308,7 @@ class _TxEditScreenState extends State<TxEditScreen> {
         amount: amt,
         accountId: _accountId!,
         toAccountId: _type == TxType.transfer ? _toAccountId : null,
-        categoryId: _type == TxType.transfer ? null : _categoryId,
+        categoryId: categoryId,
         note: _noteCtl.text.trim(),
         date: _date,
         receipt: receipt,
@@ -386,6 +481,7 @@ class _TxEditScreenState extends State<TxEditScreen> {
         ? 'Today'
         : DateFormat('d MMM yy').format(_date);
 
+    final showPad = _padOpen && !_phoneKeyboard;
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -402,208 +498,287 @@ class _TxEditScreenState extends State<TxEditScreen> {
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, box) {
-            // With the system keyboard closed the page is a fixed layout that
-            // does not scroll. While the system keyboard is open it covers the
-            // lower part, so the same layout becomes scrollable to reach it.
+            // No phone keyboard: a fixed layout that does not scroll. With the
+            // phone keyboard open (note / phone-keyboard amount) the same
+            // layout becomes scrollable.
             final view = View.of(context);
             final keyboard = view.viewInsets.bottom / view.devicePixelRatio;
             final navBar = view.padding.bottom / view.devicePixelRatio;
             final fullH =
                 box.maxHeight + (keyboard > 0 ? keyboard - navBar : 0);
+            final padRows = _calc ? 5 : 4;
+            // Everything above the keypad is ~190px; keep >=130px for tags.
+            final rowH = ((fullH - 190 - 130 - 34) / padRows).clamp(38.0, 50.0);
+            if (keyboard > 0 && _noteFocus.hasFocus) {
+              // Scroll up so note, date, receipt and Save sit above the keyboard.
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (_scroll.hasClients) {
+                  _scroll.jumpTo(_scroll.position.maxScrollExtent);
+                }
+              });
+            }
             return SingleChildScrollView(
+              controller: _scroll,
               physics: keyboard > 0
                   ? const ClampingScrollPhysics()
                   : const NeverScrollableScrollPhysics(),
               child: SizedBox(
                 height: fullH,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
-                  child: Column(
-                    children: [
-                      SizedBox(
-                        width: double.infinity,
-                        child: SegmentedButton<TxType>(
-                          showSelectedIcon: false,
-                          segments: const [
-                            ButtonSegment(
-                              value: TxType.expense,
-                              label: Text('Expense'),
-                            ),
-                            ButtonSegment(
-                              value: TxType.income,
-                              label: Text('Income'),
-                            ),
-                            ButtonSegment(
-                              value: TxType.transfer,
-                              label: Text('Transfer'),
-                            ),
-                          ],
-                          selected: {_type},
-                          onSelectionChanged: (s) => setState(() {
-                            _type = s.first;
-                            _categoryId = null;
-                          }),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      // Amount: numeric keyboard with a decimal point
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: cs.surfaceContainerLow,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: TextField(
-                          key: const Key('amount-field'),
-                          controller: _amountCtl,
-                          focusNode: _amountFocus,
-                          autofocus: widget.existing == null,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                          textInputAction: TextInputAction.done,
-                          inputFormatters: [_AmountFormatter()],
-                          textAlign: TextAlign.right,
-                          onSubmitted: (_) => _amountFocus.unfocus(),
-                          onTapOutside: (_) => _amountFocus.unfocus(),
-                          style: TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.w600,
-                            color: amountColor,
-                          ),
-                          decoration: InputDecoration(
-                            prefixText: '₹ ',
-                            prefixStyle: TextStyle(
-                              fontSize: 32,
-                              fontWeight: FontWeight.w600,
-                              color: cs.onSurfaceVariant,
-                            ),
-                            hintText: '0',
-                            hintStyle: TextStyle(
-                              fontSize: 32,
-                              fontWeight: FontWeight.w600,
-                              color: cs.onSurfaceVariant,
-                            ),
-                            border: InputBorder.none,
-                            isDense: true,
-                            contentPadding: const EdgeInsets.symmetric(
-                              vertical: 10,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      // Accounts
-                      if (isTransfer)
-                        Row(
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
+                        child: Column(
                           children: [
-                            Expanded(
-                              child: _accountDropdown(
-                                accounts,
-                                'From',
-                                _accountId,
-                                (v) => setState(() {
-                                  _accountId = v;
-                                  if (_toAccountId == v) _toAccountId = null;
+                            SizedBox(
+                              width: double.infinity,
+                              child: SegmentedButton<TxType>(
+                                showSelectedIcon: false,
+                                segments: const [
+                                  ButtonSegment(
+                                    value: TxType.expense,
+                                    label: Text('Expense'),
+                                  ),
+                                  ButtonSegment(
+                                    value: TxType.income,
+                                    label: Text('Income'),
+                                  ),
+                                  ButtonSegment(
+                                    value: TxType.transfer,
+                                    label: Text('Transfer'),
+                                  ),
+                                ],
+                                selected: {_type},
+                                onSelectionChanged: (s) => setState(() {
+                                  _type = s.first;
+                                  _categoryId = null;
                                 }),
                               ),
                             ),
-                            const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 4),
-                              child: Icon(Icons.arrow_forward, size: 18),
-                            ),
-                            Expanded(
-                              child: _accountDropdown(
-                                accounts
-                                    .where((a) => a.id != _accountId)
-                                    .toList(),
-                                'To',
-                                _toAccountId,
-                                (v) => setState(() => _toAccountId = v),
-                                key: ValueKey('to-$_accountId'),
-                              ),
-                            ),
-                          ],
-                        )
-                      else
-                        _accountDropdown(
-                          accounts,
-                          'Account',
-                          _accountId,
-                          (v) => setState(() => _accountId = v),
-                        ),
-                      const SizedBox(height: 16),
-                      // Categories fill whatever space is left; tags shrink to fit.
-                      Expanded(
-                        child: isTransfer
-                            ? Center(
-                                child: Text(
-                                  'Moves money between your accounts',
-                                  style: TextStyle(color: cs.onSurfaceVariant),
-                                ),
-                              )
-                            : _CategoryPicker(
-                                categories: cats,
-                                selectedId: _categoryId,
-                                onSelect: (id) =>
-                                    setState(() => _categoryId = id),
-                              ),
-                      ),
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          Expanded(child: _noteField(cats)),
-                          const SizedBox(width: 6),
-                          OutlinedButton.icon(
-                            onPressed: _pickDate,
-                            icon: const Icon(Icons.event, size: 16),
-                            label: Text(dateLabel),
-                            style: OutlinedButton.styleFrom(
-                              minimumSize: const Size(0, 42),
+                            const SizedBox(height: 6),
+                            // Amount (typed on the in-app keypad)
+                            Container(
+                              width: double.infinity,
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
+                                horizontal: 12,
+                              ),
+                              decoration: BoxDecoration(
+                                color: cs.surfaceContainerLow,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  TextField(
+                                    key: const Key('amount-field'),
+                                    controller: _amountCtl,
+                                    focusNode: _amountFocus,
+                                    autofocus: widget.existing == null,
+                                    readOnly: !_phoneKeyboard,
+                                    showCursor: true,
+                                    enableInteractiveSelection: false,
+                                    keyboardType: _phoneKeyboard
+                                        ? const TextInputType.numberWithOptions(
+                                            decimal: true,
+                                          )
+                                        : TextInputType.none,
+                                    textInputAction: TextInputAction.done,
+                                    inputFormatters: _phoneKeyboard
+                                        ? [_AmountFormatter()]
+                                        : const [],
+                                    textAlign: TextAlign.right,
+                                    onSubmitted: (_) => _amountDone(),
+                                    style: TextStyle(
+                                      fontSize: 32,
+                                      fontWeight: FontWeight.w600,
+                                      color: amountColor,
+                                    ),
+                                    decoration: InputDecoration(
+                                      prefixText: '₹ ',
+                                      prefixStyle: TextStyle(
+                                        fontSize: 32,
+                                        fontWeight: FontWeight.w600,
+                                        color: cs.onSurfaceVariant,
+                                      ),
+                                      hintText: '0',
+                                      hintStyle: TextStyle(
+                                        fontSize: 32,
+                                        fontWeight: FontWeight.w600,
+                                        color: cs.onSurfaceVariant,
+                                      ),
+                                      border: InputBorder.none,
+                                      isDense: true,
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                            vertical: 10,
+                                          ),
+                                    ),
+                                  ),
+                                  // live result while a calculation is typed
+                                  ValueListenableBuilder<TextEditingValue>(
+                                    valueListenable: _amountCtl,
+                                    builder: (context, v, _) {
+                                      final e = AmountEntry(v.text);
+                                      final r = e.hasOperator ? e.value : null;
+                                      if (r == null) {
+                                        return const SizedBox.shrink();
+                                      }
+                                      return Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: 6,
+                                        ),
+                                        child: Align(
+                                          alignment: Alignment.centerRight,
+                                          child: Text(
+                                            key: const Key('amount-result'),
+                                            '= ₹ ${formatAmount(r)}',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              color: cs.onSurfaceVariant,
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ],
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 6),
-                          Tooltip(
-                            message: _hasReceipt
-                                ? 'Receipt attached'
-                                : 'Attach receipt',
-                            child: OutlinedButton(
-                              onPressed: _receiptSheet,
-                              style: OutlinedButton.styleFrom(
-                                minimumSize: const Size(44, 42),
-                                padding: EdgeInsets.zero,
-                                backgroundColor: _hasReceipt
-                                    ? cs.primaryContainer
-                                    : null,
+                            const SizedBox(height: 8),
+                            // Accounts
+                            if (isTransfer)
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _accountDropdown(
+                                      accounts,
+                                      'From',
+                                      _accountId,
+                                      (v) => setState(() {
+                                        _accountId = v;
+                                        if (_toAccountId == v) {
+                                          _toAccountId = null;
+                                        }
+                                      }),
+                                    ),
+                                  ),
+                                  const Padding(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: 4,
+                                    ),
+                                    child: Icon(Icons.arrow_forward, size: 18),
+                                  ),
+                                  Expanded(
+                                    child: _accountDropdown(
+                                      accounts
+                                          .where((a) => a.id != _accountId)
+                                          .toList(),
+                                      'To',
+                                      _toAccountId,
+                                      (v) => setState(() => _toAccountId = v),
+                                      key: ValueKey('to-$_accountId'),
+                                    ),
+                                  ),
+                                ],
+                              )
+                            else
+                              _accountDropdown(
+                                accounts,
+                                'Account',
+                                _accountId,
+                                (v) => setState(() => _accountId = v),
                               ),
-                              child: Icon(
-                                _hasReceipt
-                                    ? Icons.receipt_long
-                                    : Icons.add_a_photo_outlined,
-                                size: 20,
-                              ),
+                            const SizedBox(height: 16),
+                            // Categories fill whatever space is left; tags shrink to fit.
+                            Expanded(
+                              child: isTransfer
+                                  ? Center(
+                                      child: Text(
+                                        'Moves money between your accounts',
+                                        style: TextStyle(
+                                          color: cs.onSurfaceVariant,
+                                        ),
+                                      ),
+                                    )
+                                  : _CategoryPicker(
+                                      categories: cats,
+                                      selectedId: _categoryId,
+                                      onSelect: (id) =>
+                                          setState(() => _categoryId = id),
+                                    ),
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 44,
-                        child: FilledButton(
-                          onPressed: _saving ? null : _save,
-                          child: const Text(
-                            'Save',
-                            style: TextStyle(fontSize: 16),
-                          ),
+                            if (!showPad) ...[
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  Expanded(child: _noteField(cats)),
+                                  const SizedBox(width: 6),
+                                  OutlinedButton.icon(
+                                    onPressed: _pickDate,
+                                    icon: const Icon(Icons.event, size: 16),
+                                    label: Text(dateLabel),
+                                    style: OutlinedButton.styleFrom(
+                                      minimumSize: const Size(0, 42),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Tooltip(
+                                    message: _hasReceipt
+                                        ? 'Receipt attached'
+                                        : 'Attach receipt',
+                                    child: OutlinedButton(
+                                      onPressed: _receiptSheet,
+                                      style: OutlinedButton.styleFrom(
+                                        minimumSize: const Size(44, 42),
+                                        padding: EdgeInsets.zero,
+                                        backgroundColor: _hasReceipt
+                                            ? cs.primaryContainer
+                                            : null,
+                                      ),
+                                      child: Icon(
+                                        _hasReceipt
+                                            ? Icons.receipt_long
+                                            : Icons.add_a_photo_outlined,
+                                        size: 20,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              SizedBox(
+                                width: double.infinity,
+                                height: 44,
+                                child: FilledButton(
+                                  onPressed: _saving ? null : _save,
+                                  child: const Text(
+                                    'Save',
+                                    style: TextStyle(fontSize: 16),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                    if (showPad)
+                      AmountPad(
+                        calculator: _calc,
+                        rowHeight: rowH,
+                        onKey: _press,
+                        onDone: _amountDone,
+                        onEquals: _equals,
+                        onClose: _closePad,
+                        onPhoneKeyboard: _usePhoneKeyboard,
+                        onToggleCalculator: () =>
+                            setState(() => _calc = !_calc),
+                      ),
+                  ],
                 ),
               ),
             );

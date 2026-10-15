@@ -140,4 +140,106 @@ void main() {
       expect(Account.fromMap(old).isDefault, isFalse);
     });
   });
+
+  group('SearchFilters', () {
+    Tx tx(String id, DateTime d, int paise,
+            {String acc = 'a1', String? to, String? cat}) =>
+        Tx(
+            id: id,
+            type: to == null ? TxType.expense : TxType.transfer,
+            amount: paise,
+            accountId: acc,
+            toAccountId: to,
+            categoryId: cat,
+            date: d);
+
+    test('no filters: inactive and matches everything', () {
+      final f = SearchFilters();
+      expect(f.isActive, isFalse);
+      expect(f.matches(tx('1', DateTime(2026, 1, 1), 100)), isTrue);
+    });
+
+    test('time period: from inclusive, to exclusive', () {
+      final f = SearchFilters(from: DateTime(2026, 3, 1), to: DateTime(2026, 4, 1));
+      expect(f.isActive, isTrue);
+      expect(f.matches(tx('a', DateTime(2026, 3, 1), 1)), isTrue);
+      expect(f.matches(tx('b', DateTime(2026, 3, 31, 23, 59), 1)), isTrue);
+      expect(f.matches(tx('c', DateTime(2026, 4, 1), 1)), isFalse);
+      expect(f.matches(tx('d', DateTime(2026, 2, 28), 1)), isFalse);
+    });
+
+    test('account matches the source or the destination of a transfer', () {
+      final f = SearchFilters(accountId: 'a2');
+      expect(f.matches(tx('1', DateTime(2026), 1, acc: 'a2')), isTrue);
+      expect(f.matches(tx('2', DateTime(2026), 1, acc: 'a1', to: 'a2')), isTrue);
+      expect(f.matches(tx('3', DateTime(2026), 1, acc: 'a1')), isFalse);
+    });
+
+    test('category', () {
+      final f = SearchFilters(categoryId: 'e1');
+      expect(f.matches(tx('1', DateTime(2026), 1, cat: 'e1')), isTrue);
+      expect(f.matches(tx('2', DateTime(2026), 1, cat: 'e2')), isFalse);
+      expect(f.matches(tx('3', DateTime(2026), 1)), isFalse); // uncategorized
+    });
+
+    test('amount range is inclusive; min only, max only, both', () {
+      expect(SearchFilters(minPaise: 10000).matches(tx('1', DateTime(2026), 10000)), isTrue);
+      expect(SearchFilters(minPaise: 10000).matches(tx('2', DateTime(2026), 9999)), isFalse);
+      expect(SearchFilters(maxPaise: 50000).matches(tx('3', DateTime(2026), 50000)), isTrue);
+      expect(SearchFilters(maxPaise: 50000).matches(tx('4', DateTime(2026), 50001)), isFalse);
+      final both = SearchFilters(minPaise: 10000, maxPaise: 50000);
+      expect(both.matches(tx('5', DateTime(2026), 25000)), isTrue);
+      expect(both.matches(tx('6', DateTime(2026), 5000)), isFalse);
+      expect(both.matches(tx('7', DateTime(2026), 60000)), isFalse);
+    });
+
+    test('all filters must match together', () {
+      final f = SearchFilters(
+          from: DateTime(2026, 3, 1),
+          to: DateTime(2026, 4, 1),
+          accountId: 'a1',
+          categoryId: 'e1',
+          minPaise: 1000,
+          maxPaise: 9000);
+      expect(f.matches(tx('ok', DateTime(2026, 3, 5), 5000, cat: 'e1')), isTrue);
+      expect(f.matches(tx('wrong-month', DateTime(2026, 5, 5), 5000, cat: 'e1')), isFalse);
+      expect(f.matches(tx('wrong-acc', DateTime(2026, 3, 5), 5000, acc: 'a2', cat: 'e1')), isFalse);
+      expect(f.matches(tx('wrong-cat', DateTime(2026, 3, 5), 5000, cat: 'e2')), isFalse);
+      expect(f.matches(tx('too-big', DateTime(2026, 3, 5), 9500, cat: 'e1')), isFalse);
+    });
+
+    test('copy is independent; clear helpers', () {
+      final f = SearchFilters(
+          from: DateTime(2026), to: DateTime(2027), periodKey: 'year', periodLabel: 'This year',
+          minPaise: 1, maxPaise: 2, accountId: 'a1');
+      final c = f.copy()..clearPeriod()..clearAmount();
+      expect(c.hasPeriod, isFalse);
+      expect(c.hasAmount, isFalse);
+      expect(c.accountId, 'a1');
+      expect(f.hasPeriod, isTrue); // original untouched
+      expect(f.hasAmount, isTrue);
+    });
+  });
+
+  group('findOtherCategoryId', () {
+    Category cat(String id, String name, TxType k) =>
+        Category(id: id, name: name, icon: 'other', color: 0, kind: k);
+
+    test('finds Other / Others of the right kind, ignoring case', () {
+      final cats = [
+        cat('e1', 'Food', TxType.expense),
+        cat('e2', ' other ', TxType.expense),
+        cat('i1', 'Salary', TxType.income),
+        cat('i2', 'Others', TxType.income),
+      ];
+      expect(findOtherCategoryId(cats, TxType.expense), 'e2');
+      expect(findOtherCategoryId(cats, TxType.income), 'i2');
+    });
+
+    test('null when there is none for that kind', () {
+      final cats = [cat('e1', 'Food', TxType.expense), cat('e2', 'Other', TxType.expense)];
+      expect(findOtherCategoryId(cats, TxType.income), isNull);
+      expect(findOtherCategoryId(const [], TxType.expense), isNull);
+    });
+  });
 }

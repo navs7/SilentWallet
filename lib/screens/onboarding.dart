@@ -24,8 +24,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     if (enableLock && !await lockCtl.deviceSupported()) {
       enableLock = false;
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Set a screen lock (PIN / pattern / fingerprint) in Android settings to use app lock.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Set a screen lock (PIN / pattern / fingerprint) in Android settings to use app lock.',
+            ),
+          ),
+        );
       }
     }
     await settings.setLock(enableLock);
@@ -42,41 +47,60 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final cs = Theme.of(context).colorScheme;
     return Scaffold(
       body: SafeArea(
-        child: ListView(padding: const EdgeInsets.all(24), children: [
-          const SizedBox(height: 24),
-          Icon(Icons.shield_moon_outlined, size: 72, color: cs.primary),
-          const SizedBox(height: 16),
-          Text('Silent Wallet', style: Theme.of(context).textTheme.headlineMedium),
-          const SizedBox(height: 8),
-          Text('Your expenses stay on this phone. Always.',
-              style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 24),
-          const _Point(Icons.wifi_off, 'No internet access',
-              'The app has no network permission. Nothing is ever uploaded.'),
-          const _Point(Icons.enhanced_encryption_outlined, 'Encrypted storage',
-              'Data and receipt photos are encrypted with a key kept in the phone\'s secure hardware.'),
-          const _Point(Icons.save_alt, 'You own the backups',
-              'There is no cloud. Export an encrypted backup file regularly — if you lose the phone without one, the data is gone.'),
-          const SizedBox(height: 8),
-          SwitchListTile(
-            value: lock,
-            onChanged: (v) => setState(() => lock = v),
-            title: const Text('Lock app with fingerprint / PIN'),
-            subtitle: const Text('Uses your phone\'s own screen lock'),
-          ),
-          SwitchListTile(
-            value: reminder,
-            onChanged: (v) => setState(() => reminder = v),
-            title: const Text('Weekly backup reminder'),
-            subtitle: const Text('A local notification, never from a server'),
-          ),
-          const SizedBox(height: 16),
-          FilledButton(
-            onPressed: busy ? null : _start,
-            child: const Padding(
-                padding: EdgeInsets.all(12), child: Text('Get started')),
-          ),
-        ]),
+        child: ListView(
+          padding: const EdgeInsets.all(24),
+          children: [
+            const SizedBox(height: 24),
+            Icon(Icons.shield_moon_outlined, size: 72, color: cs.primary),
+            const SizedBox(height: 16),
+            Text(
+              'Silent Wallet',
+              style: Theme.of(context).textTheme.headlineMedium,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Your expenses stay on this phone. Always.',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 24),
+            const _Point(
+              Icons.wifi_off,
+              'No internet access',
+              'The app has no network permission. Nothing is ever uploaded.',
+            ),
+            const _Point(
+              Icons.enhanced_encryption_outlined,
+              'Encrypted storage',
+              'Data and receipt photos are encrypted with a key kept in the phone\'s secure hardware.',
+            ),
+            const _Point(
+              Icons.save_alt,
+              'You own the backups',
+              'There is no cloud. Export an encrypted backup file regularly — if you lose the phone without one, the data is gone.',
+            ),
+            const SizedBox(height: 8),
+            SwitchListTile(
+              value: lock,
+              onChanged: (v) => setState(() => lock = v),
+              title: const Text('Lock app with fingerprint / PIN'),
+              subtitle: const Text('Uses your phone\'s own screen lock'),
+            ),
+            SwitchListTile(
+              value: reminder,
+              onChanged: (v) => setState(() => reminder = v),
+              title: const Text('Weekly backup reminder'),
+              subtitle: const Text('A local notification, never from a server'),
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: busy ? null : _start,
+              child: const Padding(
+                padding: EdgeInsets.all(12),
+                child: Text('Get started'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -87,9 +111,6 @@ class _Point extends StatelessWidget {
   final String title, body;
   const _Point(this.icon, this.title, this.body);
   @override
-  Widget build(BuildContext context) => ListTile(
-        leading: Icon(icon),
-        title: Text(title),
-        subtitle: Text(body),
-      );
+  Widget build(BuildContext context) =>
+      ListTile(leading: Icon(icon), title: Text(title), subtitle: Text(body));
 }

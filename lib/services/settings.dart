@@ -5,7 +5,8 @@ class Settings extends ChangeNotifier {
   final SharedPreferences _p;
   Settings(this._p);
 
-  static Future<Settings> load() async => Settings(await SharedPreferences.getInstance());
+  static Future<Settings> load() async =>
+      Settings(await SharedPreferences.getInstance());
 
   bool get lockEnabled => _p.getBool('lock') ?? false;
   bool get onboarded => _p.getBool('onboarded') ?? false;
@@ -16,10 +17,10 @@ class Settings extends ChangeNotifier {
   }
 
   ThemeMode get themeMode => switch (_p.getString('theme')) {
-        'light' => ThemeMode.light,
-        'dark' => ThemeMode.dark,
-        _ => ThemeMode.system,
-      };
+    'light' => ThemeMode.light,
+    'dark' => ThemeMode.dark,
+    _ => ThemeMode.system,
+  };
 
   Future<void> setLock(bool v) async {
     await _p.setBool('lock', v);

@@ -14,8 +14,10 @@ class Notifier {
   }
 
   static Future<bool> requestPermission() async {
-    final a = _plugin.resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>();
+    final a = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
     return (await a?.requestNotificationsPermission()) ?? false;
   }
 

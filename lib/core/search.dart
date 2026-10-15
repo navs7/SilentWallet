@@ -88,3 +88,68 @@ List<NoteEntry> rankNotes(List<NoteEntry> all, String query, {int limit = 6}) {
   contains.sort(byUse);
   return [...starts, ...contains].take(limit).toList();
 }
+
+/// Optional filters applied together with the search text.
+class SearchFilters {
+  /// Time period: [from] inclusive, [to] exclusive.
+  DateTime? from;
+  DateTime? to;
+  String? periodKey; // 'month' | 'last' | 'year' | 'custom' (for the UI)
+  String? periodLabel;
+  String? accountId;
+  String? categoryId;
+  int? minPaise; // inclusive
+  int? maxPaise; // inclusive
+
+  SearchFilters({
+    this.from,
+    this.to,
+    this.periodKey,
+    this.periodLabel,
+    this.accountId,
+    this.categoryId,
+    this.minPaise,
+    this.maxPaise,
+  });
+
+  bool get hasPeriod => from != null && to != null;
+  bool get hasAmount => minPaise != null || maxPaise != null;
+
+  bool get isActive =>
+      hasPeriod || accountId != null || categoryId != null || hasAmount;
+
+  SearchFilters copy() => SearchFilters(
+    from: from,
+    to: to,
+    periodKey: periodKey,
+    periodLabel: periodLabel,
+    accountId: accountId,
+    categoryId: categoryId,
+    minPaise: minPaise,
+    maxPaise: maxPaise,
+  );
+
+  void clearPeriod() {
+    from = to = null;
+    periodKey = periodLabel = null;
+  }
+
+  void clearAmount() {
+    minPaise = maxPaise = null;
+  }
+
+  bool matches(Tx t) {
+    if (hasPeriod && (t.date.isBefore(from!) || !t.date.isBefore(to!))) {
+      return false;
+    }
+    if (accountId != null &&
+        t.accountId != accountId &&
+        t.toAccountId != accountId) {
+      return false;
+    }
+    if (categoryId != null && t.categoryId != categoryId) return false;
+    if (minPaise != null && t.amount < minPaise!) return false;
+    if (maxPaise != null && t.amount > maxPaise!) return false;
+    return true;
+  }
+}

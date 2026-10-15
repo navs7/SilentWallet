@@ -17,14 +17,16 @@ Future<void> main() async {
   await Notifier.init();
   await repo.processRecurring();
   final lock = LockController(settings);
-  runApp(MultiProvider(
-    providers: [
-      ChangeNotifierProvider.value(value: settings),
-      ChangeNotifierProvider.value(value: repo),
-      ChangeNotifierProvider.value(value: lock),
-    ],
-    child: const SilentWalletApp(),
-  ));
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider.value(value: settings),
+        ChangeNotifierProvider.value(value: repo),
+        ChangeNotifierProvider.value(value: lock),
+      ],
+      child: const SilentWalletApp(),
+    ),
+  );
 }
 
 class SilentWalletApp extends StatelessWidget {
@@ -76,9 +78,11 @@ class _GateState extends State<_Gate> with WidgetsBindingObserver {
     final settings = context.watch<Settings>();
     final lock = context.watch<LockController>();
     if (!settings.onboarded) return const OnboardingScreen();
-    return Stack(children: [
-      const HomeScreen(),
-      if (lock.locked) const Positioned.fill(child: LockScreen()),
-    ]);
+    return Stack(
+      children: [
+        const HomeScreen(),
+        if (lock.locked) const Positioned.fill(child: LockScreen()),
+      ],
+    );
   }
 }

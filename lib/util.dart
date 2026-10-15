@@ -1,8 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-final _inr = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 2);
-final _inr0 = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
+final _inr = NumberFormat.currency(
+  locale: 'en_IN',
+  symbol: '₹',
+  decimalDigits: 2,
+);
+final _inr0 = NumberFormat.currency(
+  locale: 'en_IN',
+  symbol: '₹',
+  decimalDigits: 0,
+);
 
 String money(int paise, {bool compact = false}) =>
     (compact && paise % 100 == 0 ? _inr0 : _inr).format(paise / 100);
@@ -30,24 +38,38 @@ void toast(BuildContext c, String msg) {
     ..showSnackBar(SnackBar(content: Text(msg)));
 }
 
-Future<bool> confirm(BuildContext c, String title, String body,
-    {String ok = 'Delete'}) async {
+Future<bool> confirm(
+  BuildContext c,
+  String title,
+  String body, {
+  String ok = 'Delete',
+}) async {
   return await showDialog<bool>(
         context: c,
         builder: (_) => AlertDialog(
           title: Text(title),
           content: Text(body),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(ok)),
+            TextButton(
+              onPressed: () => Navigator.pop(c, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(c, true),
+              child: Text(ok),
+            ),
           ],
         ),
       ) ??
       false;
 }
 
-Future<String?> askPassword(BuildContext c,
-    {required String title, String? hint, bool confirmField = false}) {
+Future<String?> askPassword(
+  BuildContext c, {
+  required String title,
+  String? hint,
+  bool confirmField = false,
+}) {
   final a = TextEditingController();
   final b = TextEditingController();
   String? err;
@@ -56,29 +78,41 @@ Future<String?> askPassword(BuildContext c,
     builder: (_) => StatefulBuilder(
       builder: (ctx, set) => AlertDialog(
         title: Text(title),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          if (hint != null)
-            Padding(padding: const EdgeInsets.only(bottom: 12), child: Text(hint)),
-          TextField(
-            controller: a,
-            obscureText: true,
-            autofocus: true,
-            decoration: const InputDecoration(labelText: 'Password'),
-          ),
-          if (confirmField)
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (hint != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Text(hint),
+              ),
             TextField(
-              controller: b,
+              controller: a,
               obscureText: true,
-              decoration: const InputDecoration(labelText: 'Repeat password'),
+              autofocus: true,
+              decoration: const InputDecoration(labelText: 'Password'),
             ),
-          if (err != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(err!, style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
-            ),
-        ]),
+            if (confirmField)
+              TextField(
+                controller: b,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: 'Repeat password'),
+              ),
+            if (err != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  err!,
+                  style: TextStyle(color: Theme.of(ctx).colorScheme.error),
+                ),
+              ),
+          ],
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
             onPressed: () {
               if (confirmField) {
@@ -111,7 +145,7 @@ class DateRange {
 }
 
 DateRange monthRange(DateTime m) => DateRange(
-      DateTime(m.year, m.month),
-      DateTime(m.year, m.month + 1),
-      DateFormat('MMMM yyyy').format(m),
-    );
+  DateTime(m.year, m.month),
+  DateTime(m.year, m.month + 1),
+  DateFormat('MMMM yyyy').format(m),
+);

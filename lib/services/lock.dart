@@ -57,7 +57,8 @@ class LockController extends ChangeNotifier with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (!settings.lockEnabled) return;
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
       if (_suspended == 0 && !locked) {
         locked = true;
         notifyListeners();

@@ -5,6 +5,7 @@ import '../core/models.dart';
 import '../core/repo.dart';
 import '../core/search.dart';
 import '../util.dart';
+import 'search_filter_sheet.dart';
 import 'tx_edit.dart';
 
 class TxListScreen extends StatefulWidget {
@@ -20,6 +21,7 @@ class _TxListScreenState extends State<TxListScreen> {
   String _search = '';
   final _ctl = TextEditingController();
   final _focus = FocusNode();
+  SearchFilters _filters = SearchFilters();
 
   bool get _searching => widget.searchOpen.value;
 
@@ -42,6 +44,7 @@ class _TxListScreenState extends State<TxListScreen> {
     setState(() {
       if (!widget.searchOpen.value) {
         _search = '';
+        _filters = SearchFilters();
         _ctl.clear();
         _focus.unfocus();
       }
@@ -50,6 +53,12 @@ class _TxListScreenState extends State<TxListScreen> {
 
   void _shift(int d) =>
       setState(() => _month = DateTime(_month.year, _month.month + d));
+
+  Future<void> _openFilters() async {
+    _focus.unfocus();
+    final r = await showSearchFilterSheet(context, _filters);
+    if (r != null && mounted) setState(() => _filters = r);
+  }
 
   void _useQuery(String q) {
     _ctl.text = q;
@@ -61,9 +70,10 @@ class _TxListScreenState extends State<TxListScreen> {
   Widget build(BuildContext context) {
     final repo = context.watch<Repo>();
     final range = monthRange(_month);
-    final hasQuery = _searching && _search.trim().isNotEmpty;
+    final hasQuery =
+        _searching && (_search.trim().isNotEmpty || _filters.isActive);
     final Future<List<Tx>> future = hasQuery
-        ? repo.search(_search) // every date, not just this month
+        ? repo.search(_search, filters: _filters) // every date unless filtered
         : _searching
         ? Future.value(const <Tx>[])
         : repo.txBetween(range.from, range.to);
@@ -105,6 +115,14 @@ class _TxListScreenState extends State<TxListScreen> {
                             ),
                           ),
                           IconButton(
+                            tooltip: 'Filters',
+                            onPressed: _openFilters,
+                            icon: Badge(
+                              isLabelVisible: _filters.isActive,
+                              child: const Icon(Icons.tune),
+                            ),
+                          ),
+                          IconButton(
                             tooltip: 'Close search',
                             onPressed: () => widget.searchOpen.value = false,
                             icon: const Icon(Icons.close),
@@ -137,6 +155,13 @@ class _TxListScreenState extends State<TxListScreen> {
                       ),
               ),
             ),
+            if (_searching && _filters.isActive)
+              SliverToBoxAdapter(
+                child: FilterChips(
+                  filters: _filters,
+                  onChanged: (f) => setState(() => _filters = f),
+                ),
+              ),
             if (_searching && !hasQuery)
               SliverToBoxAdapter(child: _RecentNotes(onPick: _useQuery)),
             if (!_searching || hasQuery) ...[
@@ -167,7 +192,7 @@ class _TxListScreenState extends State<TxListScreen> {
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(14, 2, 14, 0),
                     child: Text(
-                      '${txs.length}${txs.length >= 500 ? '+' : ''} result${txs.length == 1 ? '' : 's'} across all dates',
+                      '${txs.length}${txs.length >= 500 ? '+' : ''} result${txs.length == 1 ? '' : 's'}${_filters.hasPeriod ? '' : ' across all dates'}',
                       style: Theme.of(context).textTheme.labelMedium,
                     ),
                   ),
@@ -179,7 +204,9 @@ class _TxListScreenState extends State<TxListScreen> {
                 child: Center(
                   child: Text(
                     hasQuery
-                        ? 'No transactions match "${_search.trim()}".'
+                        ? (_search.trim().isEmpty
+                              ? 'No transactions match these filters.'
+                              : 'No transactions match "${_search.trim()}".')
                         : 'No transactions this month.\nTap Add to record one.',
                     textAlign: TextAlign.center,
                   ),

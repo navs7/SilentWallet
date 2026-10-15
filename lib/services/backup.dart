@@ -28,17 +28,26 @@ class BackupService {
   }
 
   /// Replaces ALL current data with the backup's contents.
-  static Future<void> restore(Repo repo, List<int> file, String password) async {
+  static Future<void> restore(
+    Repo repo,
+    List<int> file,
+    String password,
+  ) async {
     final zip = await decryptBackup(file, password);
     final archive = ZipDecoder().decodeBytes(zip);
     final dataFile = archive.findFile('data.json');
-    if (dataFile == null) throw BadBackupException('Backup is missing its data.');
-    final data = jsonDecode(utf8.decode(dataFile.content as List<int>))
-        as Map<String, dynamic>;
+    if (dataFile == null) {
+      throw BadBackupException('Backup is missing its data.');
+    }
+    final data = jsonDecode(
+      utf8.decode(dataFile.content as List<int>),
+    ) as Map<String, dynamic>;
     for (final f in archive.files) {
       if (!f.isFile || !f.name.startsWith('receipts/')) continue;
       await repo.writeReceiptRaw(
-          f.name.substring('receipts/'.length), Uint8List.fromList(f.content as List<int>));
+        f.name.substring('receipts/'.length),
+        Uint8List.fromList(f.content as List<int>),
+      );
     }
     await repo.restoreAll(data);
   }
@@ -50,20 +59,24 @@ class BackupService {
   static Future<String> csv(Repo repo) async {
     String esc(String s) =>
         (s.contains(',') || s.contains('"') || s.contains('\n'))
-            ? '"${s.replaceAll('"', '""')}"'
-            : s;
+        ? '"${s.replaceAll('"', '""')}"'
+        : s;
     final fmt = DateFormat('yyyy-MM-dd');
-    final b = StringBuffer('Date,Type,Amount (INR),Account,To Account,Category,Note\n');
+    final b = StringBuffer(
+      'Date,Type,Amount (INR),Account,To Account,Category,Note\n',
+    );
     for (final t in await repo.allTx()) {
-      b.writeln([
-        fmt.format(t.date),
-        t.type.name,
-        (t.amount / 100).toStringAsFixed(2),
-        esc(repo.account(t.accountId)?.name ?? ''),
-        esc(repo.account(t.toAccountId)?.name ?? ''),
-        esc(repo.category(t.categoryId)?.name ?? ''),
-        esc(t.note),
-      ].join(','));
+      b.writeln(
+        [
+          fmt.format(t.date),
+          t.type.name,
+          (t.amount / 100).toStringAsFixed(2),
+          esc(repo.account(t.accountId)?.name ?? ''),
+          esc(repo.account(t.toAccountId)?.name ?? ''),
+          esc(repo.category(t.categoryId)?.name ?? ''),
+          esc(t.note),
+        ].join(','),
+      );
     }
     return b.toString();
   }

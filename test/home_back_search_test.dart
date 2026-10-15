@@ -116,6 +116,197 @@ void main() {
     });
   });
 
+  group('search filters', () {
+    final txs = [
+      sampleTx('1', thisMonth, note: 'Coffee', paise: 12000, categoryId: 'e0'),
+      sampleTx('2', longAgo, note: 'Zomato dinner', paise: 45050, categoryId: 'e0'),
+      sampleTx('3', longAgo, note: 'Weekly shop', paise: 99900, categoryId: 'e1', accountId: 'a2'),
+    ];
+
+    Future<void> openSearch(WidgetTester t) async {
+      await t.tap(find.byTooltip('Search'));
+      await t.pumpAndSettle();
+    }
+
+    Future<void> openSheet(WidgetTester t) async {
+      await t.tap(find.byTooltip('Filters'));
+      await t.pumpAndSettle();
+      expect(find.text('Filters'), findsOneWidget);
+    }
+
+    Future<void> apply(WidgetTester t) async {
+      await t.tap(find.byKey(const Key('filter-apply')));
+      await t.pumpAndSettle();
+    }
+
+    Future<void> pick(WidgetTester t, String dropdownKey, String item) async {
+      await t.tap(find.byKey(Key(dropdownKey)));
+      await t.pumpAndSettle();
+      await t.tap(find.text(item).last);
+      await t.pumpAndSettle();
+    }
+
+    testWidgets('filters alone (no search text) list matching transactions', (t) async {
+      await _pumpHome(t, txs: txs);
+      await openSearch(t);
+      await openSheet(t);
+      await pick(t, 'filter-account', 'HDFC Savings');
+      await apply(t);
+      expect(find.textContaining('Weekly shop'), findsOneWidget);
+      expect(find.textContaining('Zomato dinner'), findsNothing);
+      expect(find.byKey(const Key('chip-account')), findsOneWidget);
+      expect(find.descendant(of: find.byKey(const Key('chip-account')), matching: find.text('HDFC Savings')), findsOneWidget);
+      expect(find.text('1 result across all dates'), findsOneWidget);
+    });
+
+    testWidgets('category filter', (t) async {
+      await _pumpHome(t, txs: txs);
+      await openSearch(t);
+      await openSheet(t);
+      await pick(t, 'filter-category', 'Food & Dining');
+      await apply(t);
+      expect(find.textContaining('Coffee'), findsOneWidget);
+      expect(find.textContaining('Zomato dinner'), findsOneWidget);
+      expect(find.textContaining('Weekly shop'), findsNothing);
+      expect(find.text('2 results across all dates'), findsOneWidget);
+    });
+
+    testWidgets('amount range (min and max)', (t) async {
+      await _pumpHome(t, txs: txs);
+      await openSearch(t);
+      await openSheet(t);
+      await t.enterText(find.byKey(const Key('filter-min')), '100');
+      await t.enterText(find.byKey(const Key('filter-max')), '500');
+      await apply(t);
+      expect(find.textContaining('Coffee'), findsOneWidget); // 120
+      expect(find.textContaining('Zomato dinner'), findsOneWidget); // 450.50
+      expect(find.textContaining('Weekly shop'), findsNothing); // 999
+      expect(find.descendant(of: find.byKey(const Key('chip-amount')), matching: find.text('₹100 – ₹500')), findsOneWidget);
+    });
+
+    testWidgets('min only and max only', (t) async {
+      await _pumpHome(t, txs: txs);
+      await openSearch(t);
+      await openSheet(t);
+      await t.enterText(find.byKey(const Key('filter-min')), '500');
+      await apply(t);
+      expect(find.textContaining('Weekly shop'), findsOneWidget);
+      expect(find.textContaining('Coffee'), findsNothing);
+      expect(find.descendant(of: find.byKey(const Key('chip-amount')), matching: find.text('≥ ₹500')), findsOneWidget);
+      await openSheet(t);
+      await t.tap(find.byKey(const Key('filter-reset')));
+      await t.pump();
+      await t.enterText(find.byKey(const Key('filter-max')), '200');
+      await apply(t);
+      expect(find.textContaining('Coffee'), findsOneWidget);
+      expect(find.textContaining('Weekly shop'), findsNothing);
+      expect(find.descendant(of: find.byKey(const Key('chip-amount')), matching: find.text('≤ ₹200')), findsOneWidget);
+    });
+
+    testWidgets('a reversed range is swapped', (t) async {
+      await _pumpHome(t, txs: txs);
+      await openSearch(t);
+      await openSheet(t);
+      await t.enterText(find.byKey(const Key('filter-min')), '500');
+      await t.enterText(find.byKey(const Key('filter-max')), '100');
+      await apply(t);
+      expect(find.descendant(of: find.byKey(const Key('chip-amount')), matching: find.text('₹100 – ₹500')), findsOneWidget);
+      expect(find.textContaining('Coffee'), findsOneWidget);
+    });
+
+    testWidgets('time period: this month / last month / this year', (t) async {
+      await _pumpHome(t, txs: txs);
+      await openSearch(t);
+      await openSheet(t);
+      await t.tap(find.byKey(const Key('filter-period-month')));
+      await t.pump();
+      await apply(t);
+      expect(find.textContaining('Coffee'), findsOneWidget);
+      expect(find.textContaining('Zomato dinner'), findsNothing);
+      expect(find.text('1 result'), findsOneWidget); // no "across all dates" when a period is set
+      expect(find.descendant(of: find.byKey(const Key('chip-period')), matching: find.text('This month')), findsOneWidget);
+
+      await openSheet(t);
+      await t.tap(find.byKey(const Key('filter-period-last')));
+      await t.pump();
+      await apply(t);
+      expect(find.textContaining('Coffee'), findsNothing);
+      expect(find.text('No transactions match these filters.'), findsOneWidget);
+
+      await openSheet(t);
+      await t.tap(find.byKey(const Key('filter-period-year')));
+      await t.pump();
+      await apply(t);
+      expect(find.textContaining('Coffee'), findsOneWidget);
+      expect(find.textContaining('Zomato dinner'), findsNothing); // last year
+    });
+
+    testWidgets('filters combine with the search text', (t) async {
+      await _pumpHome(t, txs: txs);
+      await openSearch(t);
+      await t.enterText(find.byType(TextField), 'zomato');
+      await t.pumpAndSettle();
+      expect(find.textContaining('Zomato dinner'), findsOneWidget);
+      await openSheet(t);
+      await pick(t, 'filter-account', 'HDFC Savings');
+      await apply(t);
+      expect(find.textContaining('Zomato dinner'), findsNothing); // paid from Cash, not HDFC
+      expect(find.textContaining('No transactions match "zomato"'), findsOneWidget);
+    });
+
+    testWidgets('chips can be removed one by one or all at once', (t) async {
+      await _pumpHome(t, txs: txs);
+      await openSearch(t);
+      await openSheet(t);
+      await pick(t, 'filter-account', 'Cash');
+      await t.enterText(find.byKey(const Key('filter-min')), '100');
+      await apply(t);
+      expect(find.byKey(const Key('chip-account')), findsOneWidget);
+      expect(find.byKey(const Key('chip-amount')), findsOneWidget);
+      // remove the account chip only
+      await t.tap(find.descendant(of: find.byKey(const Key('chip-account')), matching: find.byType(Icon)));
+      await t.pumpAndSettle();
+      expect(find.byKey(const Key('chip-account')), findsNothing);
+      expect(find.byKey(const Key('chip-amount')), findsOneWidget);
+      // clear everything: back to the recent-notes screen
+      await t.tap(find.byKey(const Key('chip-clear-all')));
+      await t.pumpAndSettle();
+      expect(find.byKey(const Key('chip-amount')), findsNothing);
+      expect(find.text('Recent notes'), findsOneWidget);
+    });
+
+    testWidgets('the Filters button shows a badge while filters are active', (t) async {
+      await _pumpHome(t, txs: txs);
+      await openSearch(t);
+      Badge badge() => t.widget<Badge>(find.descendant(of: find.byTooltip('Filters'), matching: find.byType(Badge)));
+      expect(badge().isLabelVisible, isFalse);
+      await openSheet(t);
+      await t.enterText(find.byKey(const Key('filter-min')), '1');
+      await apply(t);
+      expect(badge().isLabelVisible, isTrue);
+    });
+
+    testWidgets('Reset clears the sheet; closing search drops the filters', (t) async {
+      final exit = await _mockSystemExit(t);
+      await _pumpHome(t, txs: txs);
+      await openSearch(t);
+      await openSheet(t);
+      await t.enterText(find.byKey(const Key('filter-min')), '100');
+      await t.tap(find.byKey(const Key('filter-reset')));
+      await t.pump();
+      expect(t.widget<TextField>(find.byKey(const Key('filter-min'))).controller!.text, isEmpty);
+      await t.enterText(find.byKey(const Key('filter-min')), '100');
+      await apply(t);
+      expect(find.byKey(const Key('chip-amount')), findsOneWidget);
+      await _back(t); // back gesture closes the search...
+      expect(find.byType(TextField), findsNothing);
+      expect(exit.calls, 0);
+      await openSearch(t); // ...and reopening starts clean
+      expect(find.byKey(const Key('chip-amount')), findsNothing);
+      expect(find.text('Recent notes'), findsOneWidget);
+    });
+  });
+
   group('back gesture', () {
     testWidgets('closes the search box instead of leaving the app', (t) async {
       final exit = await _mockSystemExit(t);

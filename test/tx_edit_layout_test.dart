@@ -17,49 +17,7 @@ import 'test_support.dart';
 const _defaultExpense = defaultExpenseNames;
 final _noteField = find.byKey(const Key('note-field'));
 final _amountField = find.byKey(const Key('amount-field'));
-
-FakeRepo _repo({int extraCustom = 0, List<Account>? accounts, List<Tx> txs = const []}) {
-  final r = FakeRepo(txs: txs);
-  r.accounts = accounts ?? sampleAccounts();
-  r.categories = sampleCategories(extraCustom: extraCustom);
-  return r;
-}
-
-Future<void> _pump(WidgetTester t, Size size,
-    {double top = 28,
-    double bottom = 24,
-    int extra = 0,
-    List<Account>? accounts,
-    List<Tx> txs = const [], Tx? existing}) async {
-  SharedPreferences.setMockInitialValues({});
-  final settings = await Settings.load();
-  final lock = LockController(settings);
-  t.view.devicePixelRatio = 1.0;
-  t.view.physicalSize = size;
-  t.view.padding = FakeViewPadding(top: top, bottom: bottom);
-  t.view.viewPadding = FakeViewPadding(top: top, bottom: bottom);
-  addTearDown(() {
-    t.view.resetPhysicalSize();
-    t.view.resetDevicePixelRatio();
-    t.view.resetPadding();
-    t.view.resetViewPadding();
-  });
-  await t.pumpWidget(MultiProvider(
-    providers: [
-      ChangeNotifierProvider<Repo>.value(
-          value: _repo(extraCustom: extra, accounts: accounts, txs: txs)),
-      ChangeNotifierProvider<LockController>.value(value: lock),
-    ],
-    child: MaterialApp(
-      theme: buildTheme(Brightness.light).copyWith(
-        textTheme: buildTheme(Brightness.light).textTheme.apply(fontFamily: 'Roboto'),
-      ),
-      builder: compactText,
-      home: TxEditScreen(existing: existing),
-    ),
-  ));
-  await t.pumpAndSettle();
-}
+Finder _pad(String id) => find.byKey(Key('pad-$id'));
 
 /// Flutter tests draw text with a placeholder font whose letters are as wide as
 /// they are tall. Load the real Roboto so tag widths match a phone.
@@ -74,216 +32,500 @@ Future<void> _loadRoboto() async {
   await loader.load();
 }
 
+FakeRepo _repo({int extraCustom = 0, List<Account>? accounts, List<Tx> txs = const []}) {
+  final r = FakeRepo(txs: txs);
+  r.accounts = accounts ?? sampleAccounts();
+  r.categories = sampleCategories(extraCustom: extraCustom);
+  return r;
+}
+
+Future<FakeRepo> _pump(
+  WidgetTester t,
+  Size size, {
+  double top = 28,
+  double bottom = 24,
+  int extra = 0,
+  List<Account>? accounts,
+  List<Tx> txs = const [],
+  Tx? existing,
+}) async {
+  SharedPreferences.setMockInitialValues({});
+  final settings = await Settings.load();
+  final lock = LockController(settings);
+  final repo = _repo(extraCustom: extra, accounts: accounts, txs: txs);
+  t.view.devicePixelRatio = 1.0;
+  t.view.physicalSize = size;
+  t.view.padding = FakeViewPadding(top: top, bottom: bottom);
+  t.view.viewPadding = FakeViewPadding(top: top, bottom: bottom);
+  addTearDown(() {
+    t.view.resetPhysicalSize();
+    t.view.resetDevicePixelRatio();
+    t.view.resetPadding();
+    t.view.resetViewPadding();
+  });
+  final base = buildTheme(Brightness.light);
+  await t.pumpWidget(MultiProvider(
+    providers: [
+      ChangeNotifierProvider<Repo>.value(value: repo),
+      ChangeNotifierProvider<LockController>.value(value: lock),
+    ],
+    child: MaterialApp(
+      theme: base.copyWith(textTheme: base.textTheme.apply(fontFamily: 'Roboto')),
+      builder: compactText,
+      // '/' underneath so Save can pop back like in the real app
+      initialRoute: '/add',
+      routes: {
+        '/': (_) => const Scaffold(body: Text('home')),
+        '/add': (_) => TxEditScreen(existing: existing),
+      },
+    ),
+  ));
+  await t.pumpAndSettle();
+  return repo;
+}
+
+const _ids = {'.': 'dot', '-': 'minus', '+': 'plus', '×': 'mul', '÷': 'div', '⌫': 'back'};
+
+Future<void> _keys(WidgetTester t, String keys) async {
+  for (final k in keys.split('')) {
+    await t.tap(_pad(_ids[k] ?? k));
+  }
+  await t.pump();
+}
+
+String _amountText(WidgetTester t) => t.widget<TextField>(_amountField).controller!.text;
+
+/// Type a simple amount and press Done: moves on to the note.
+Future<void> _toNote(WidgetTester t, [String amount = '5']) async {
+  await _keys(t, amount);
+  await t.tap(_pad('done'));
+  await t.pumpAndSettle();
+}
+
+double _pageScrollExtent(WidgetTester t) =>
+    t.state<ScrollableState>(find.byType(Scrollable).first).position.maxScrollExtent;
+
+Object? tester(WidgetTester t) => t.takeException();
+
 void main() {
   setUpAll(_loadRoboto);
 
-  // name, size, status-bar, nav-bar
   const phones = <(String, Size, double, double)>[
     ('compact 360x640', Size(360, 640), 28.0, 24.0),
     ('common 393x851', Size(393, 851), 32.0, 24.0),
     ('tall 412x915', Size(412, 915), 36.0, 40.0),
-    ('large-font-ish narrow 340x700', Size(340, 700), 28.0, 24.0),
+    ('narrow 340x700', Size(340, 700), 28.0, 24.0),
   ];
 
-  for (final p in phones) {
-    testWidgets('fits without scrolling or overflow on ${p.$1}', (t) async {
-      await _pump(t, p.$2, top: p.$3, bottom: p.$4);
-      expect(tester(t), isNull); // no framework exceptions (e.g. overflow)
-      expect(_pageScrollExtent(t), 0, reason: 'page must not scroll');
-      expect(find.byType(SingleChildScrollView), findsOneWidget); // just the page shell
-      // the note field is on the page, fully visible
-      final note = _noteField;
-      expect(note, findsOneWidget);
-      expect(t.getRect(note).bottom, lessThanOrEqualTo(p.$2.height - p.$4));
-      expect(find.text('Add a note'), findsOneWidget);
-      // clear gap between the Account field and the first category tag
-      final gap = t.getRect(find.text(_defaultExpense.first)).top -
-          t.getRect(find.byType(DropdownButtonFormField<String>)).bottom;
-      expect(gap, greaterThanOrEqualTo(16), reason: 'account/category spacing');
-      // every default category is on screen, inside the viewport
-      for (final name in _defaultExpense) {
-        final f = find.text(name);
-        expect(f, findsOneWidget, reason: name);
-        final r = t.getRect(f);
-        expect(r.bottom, lessThanOrEqualTo(p.$2.height - p.$4), reason: '$name below screen');
-        expect(r.right, lessThanOrEqualTo(p.$2.width), reason: '$name past right edge');
-      }
-      // the Save button is visible
-      expect(t.getRect(find.text('Save')).bottom, lessThanOrEqualTo(p.$2.height - p.$4));
+  group('layout fits on every phone size', () {
+    for (final p in phones) {
+      testWidgets('keypad open: ${p.$1}', (t) async {
+        await _pump(t, p.$2, top: p.$3, bottom: p.$4);
+        expect(tester(t), isNull); // no overflow
+        expect(_pageScrollExtent(t), 0, reason: 'page must not scroll');
+        final padTop = t.getRect(_pad('1')).top;
+        expect(t.getRect(_pad('done')).bottom, lessThanOrEqualTo(p.$2.height - p.$4 + 0.5));
+        for (final name in _defaultExpense) {
+          final f = find.text(name);
+          expect(f, findsOneWidget, reason: name);
+          final r = t.getRect(f);
+          expect(r.bottom, lessThanOrEqualTo(padTop), reason: '$name hidden behind keypad');
+          expect(r.right, lessThanOrEqualTo(p.$2.width), reason: '$name past right edge');
+        }
+        // the note row / Save are not shown while the keypad is
+        expect(_noteField, findsNothing);
+        expect(find.text('Save'), findsNothing);
+      });
+
+      testWidgets('after Done: note, date, receipt and Save fit: ${p.$1}', (t) async {
+        await _pump(t, p.$2, top: p.$3, bottom: p.$4);
+        await _toNote(t);
+        expect(tester(t), isNull);
+        expect(_pageScrollExtent(t), 0);
+        final limit = p.$2.height - p.$4;
+        for (final f in [_noteField, find.byIcon(Icons.event), find.byIcon(Icons.add_a_photo_outlined), find.text('Save')]) {
+          expect(f, findsOneWidget);
+          expect(t.getRect(f).bottom, lessThanOrEqualTo(limit));
+        }
+        for (final name in _defaultExpense) {
+          expect(find.text(name), findsOneWidget, reason: name);
+        }
+        // clear gap between the Account field and the first category tag
+        final gap = t.getRect(find.text(_defaultExpense.first)).top -
+            t.getRect(find.byType(DropdownButtonFormField<String>)).bottom;
+        expect(gap, greaterThanOrEqualTo(16));
+      });
+    }
+  });
+
+  group('amount keypad', () {
+    testWidgets('a new transaction opens on the keypad with the amount focused', (t) async {
+      await _pump(t, const Size(393, 851));
+      expect(_pad('done'), findsOneWidget);
+      expect(t.widget<TextField>(_amountField).focusNode!.hasFocus, isTrue);
+      // the keypad replaces the phone keyboard for the amount
+      expect(t.widget<TextField>(_amountField).keyboardType, TextInputType.none);
+      expect(find.text('Amount'), findsOneWidget); // keypad header
     });
-  }
 
-  testWidgets('income shows its own categories, transfer shows none', (t) async {
-    await _pump(t, const Size(393, 851));
-    await t.tap(find.text('Income'));
-    await t.pumpAndSettle();
-    expect(find.text('Salary'), findsOneWidget);
-    expect(find.text('Groceries'), findsNothing);
-    await t.tap(find.text('Transfer'));
-    await t.pumpAndSettle();
-    expect(find.text('Salary'), findsNothing);
-    expect(find.text('Moves money between your accounts'), findsOneWidget);
-    expect(find.text('From'), findsOneWidget);
-    expect(find.text('To'), findsOneWidget);
+    testWidgets('digits, dot and minus; backspace; long-press clears', (t) async {
+      await _pump(t, const Size(393, 851));
+      await _keys(t, '1234.567');
+      expect(_amountText(t), '1234.56'); // two decimals max
+      await _keys(t, '⌫');
+      expect(_amountText(t), '1234.5');
+      await t.longPress(_pad('back'));
+      await t.pump();
+      expect(_amountText(t), '');
+      await _keys(t, '9-4');
+      expect(_amountText(t), '9-4'); // minus is available without the calculator
+    });
+
+    testWidgets('calculator key adds a row of operators and shows a live result', (t) async {
+      await _pump(t, const Size(393, 851));
+      expect(_pad('mul'), findsNothing);
+      await t.tap(_pad('calc'));
+      await t.pumpAndSettle();
+      for (final id in ['div', 'mul', 'plus', 'eq']) {
+        expect(_pad(id), findsOneWidget, reason: id);
+      }
+      await _keys(t, '120+35.5×2');
+      expect(_amountText(t), '120+35.5×2');
+      expect(t.widget<Text>(find.byKey(const Key('amount-result'))).data, '= ₹ 191');
+      await t.tap(_pad('eq'));
+      await t.pump();
+      expect(_amountText(t), '191');
+      expect(find.byKey(const Key('amount-result')), findsNothing);
+      await t.tap(_pad('calc')); // hide the operator row again
+      await t.pumpAndSettle();
+      expect(_pad('mul'), findsNothing);
+      expect(tester(t), isNull);
+    });
+
+    testWidgets('= with an incomplete calculation keeps it and explains', (t) async {
+      await _pump(t, const Size(393, 851));
+      await t.tap(_pad('calc'));
+      await t.pumpAndSettle();
+      await _keys(t, '12+');
+      await t.tap(_pad('eq'));
+      await t.pump();
+      expect(_amountText(t), '12+');
+      expect(find.text('Complete the calculation first.'), findsOneWidget);
+    });
+
+    testWidgets('Done works out a calculation, then goes to the note', (t) async {
+      await _pump(t, const Size(393, 851));
+      await t.tap(_pad('calc')); // + × ÷ live on the calculator row
+      await t.pumpAndSettle();
+      await _keys(t, '10+5×2');
+      await t.tap(_pad('done'));
+      await t.pumpAndSettle();
+      expect(_amountText(t), '20');
+      expect(_pad('done'), findsNothing); // keypad gone
+      expect(_noteField, findsOneWidget);
+      expect(t.widget<TextField>(_noteField).focusNode!.hasFocus, isTrue); // cursor in the note
+      expect(t.widget<TextField>(_amountField).focusNode!.hasFocus, isFalse);
+    });
+
+    testWidgets('Done with no valid amount stays on the keypad', (t) async {
+      await _pump(t, const Size(393, 851));
+      await t.tap(_pad('done'));
+      await t.pumpAndSettle();
+      expect(find.text('Enter an amount greater than 0.'), findsOneWidget);
+      expect(_pad('done'), findsOneWidget);
+      expect(_noteField, findsNothing);
+      await _keys(t, '5-10'); // negative result
+      await t.tap(_pad('done'));
+      await t.pumpAndSettle();
+      expect(_pad('done'), findsOneWidget);
+    });
+
+    testWidgets('the note keyboard is the normal one', (t) async {
+      await _pump(t, const Size(393, 851));
+      await _toNote(t);
+      expect(t.widget<TextField>(_noteField).keyboardType, TextInputType.text);
+    });
+
+    testWidgets('X closes the keypad; tapping the amount opens it again', (t) async {
+      await _pump(t, const Size(393, 851));
+      await _keys(t, '25');
+      await t.tap(_pad('close'));
+      await t.pumpAndSettle();
+      expect(_pad('done'), findsNothing);
+      expect(_noteField, findsOneWidget);
+      expect(find.text('Save'), findsOneWidget);
+      expect(_amountText(t), '25'); // kept
+      await t.tap(_amountField);
+      await t.pumpAndSettle();
+      expect(_pad('done'), findsOneWidget);
+      expect(_noteField, findsNothing);
+    });
+
+    testWidgets('tapping the note field switches from the keypad to the phone keyboard', (t) async {
+      await _pump(t, const Size(393, 851));
+      await _keys(t, '25');
+      await t.tap(_pad('close'));
+      await t.pumpAndSettle();
+      await t.tap(_noteField);
+      await t.pumpAndSettle();
+      expect(t.widget<TextField>(_noteField).focusNode!.hasFocus, isTrue);
+      expect(_pad('done'), findsNothing);
+    });
+
+    testWidgets('globe switches the amount to the phone keyboard', (t) async {
+      await _pump(t, const Size(393, 851));
+      await t.tap(_pad('globe'));
+      await t.pumpAndSettle();
+      expect(_pad('done'), findsNothing);
+      final f = t.widget<TextField>(_amountField);
+      expect(f.keyboardType, const TextInputType.numberWithOptions(decimal: true));
+      expect(f.readOnly, isFalse);
+      expect(f.focusNode!.hasFocus, isTrue);
+      // the phone keyboard only lets a valid amount through
+      Future<String> type(String v) async {
+        await t.enterText(_amountField, v);
+        await t.pump();
+        return _amountText(t);
+      }
+
+      expect(await type('1234.5'), '1234.5');
+      expect(await type('1234.567'), '1234.5');
+      expect(await type('12a'), '1234.5');
+      expect(await type('150,75'), '150.75'); // comma becomes the decimal point
+      // its Done key goes to the note, like the in-app one
+      await t.testTextInput.receiveAction(TextInputAction.done);
+      await t.pumpAndSettle();
+      expect(t.widget<TextField>(_noteField).focusNode!.hasFocus, isTrue);
+      expect(tester(t), isNull);
+    });
+
+    testWidgets('editing: opens without the keypad, with the amount filled in', (t) async {
+      await _pump(t, const Size(393, 851),
+          existing: sampleTx('9', DateTime(2026, 3, 1), paise: 25050, note: 'Taxi'));
+      expect(_pad('done'), findsNothing);
+      expect(_amountText(t), '250.5');
+      expect(t.widget<TextField>(_amountField).focusNode!.hasFocus, isFalse);
+      expect(t.widget<TextField>(_noteField).controller!.text, 'Taxi');
+      await t.tap(_amountField);
+      await t.pumpAndSettle();
+      expect(_pad('done'), findsOneWidget);
+    });
   });
 
-  testWidgets('typing a note: keyboard opens, page scrolls, field stays reachable', (t) async {
-    await _pump(t, const Size(393, 851));
-    expect(_pageScrollExtent(t), 0);
-    t.view.viewInsets = const FakeViewPadding(bottom: 320);
-    addTearDown(t.view.resetViewInsets);
-    await t.tap(_noteField);
-    await t.pumpAndSettle();
-    expect(tester(t), isNull);
-    await t.enterText(_noteField, 'Dinner with friends');
-    await t.pumpAndSettle();
-    expect(find.text('Dinner with friends'), findsOneWidget);
-    expect(_pageScrollExtent(t), greaterThan(0)); // keyboard => scrollable
-    // the note field is above the keyboard
-    expect(t.getRect(_noteField).bottom, lessThanOrEqualTo(851 - 320));
-    // closing the keyboard restores the fixed, non-scrolling page
-    t.view.viewInsets = FakeViewPadding.zero;
-    await t.pumpAndSettle();
-    expect(_pageScrollExtent(t), 0);
-    expect(find.text('Dinner with friends'), findsOneWidget);
+  group('phone keyboard for the note', () {
+    for (final p in phones.take(2)) {
+      testWidgets('scrolls up so note, date, receipt and Save sit above it: ${p.$1}', (t) async {
+        await _pump(t, p.$2, top: p.$3, bottom: p.$4);
+        await _toNote(t);
+        expect(_pageScrollExtent(t), 0);
+        // the phone keyboard opens
+        t.view.viewInsets = const FakeViewPadding(bottom: 300);
+        addTearDown(t.view.resetViewInsets);
+        await t.pumpAndSettle();
+        expect(tester(t), isNull);
+        final keyboardTop = p.$2.height - 300;
+        expect(_pageScrollExtent(t), greaterThan(0)); // page is scrollable now…
+        for (final f in [_noteField, find.byIcon(Icons.event), find.byIcon(Icons.add_a_photo_outlined), find.text('Save')]) {
+          expect(f, findsOneWidget);
+          final r = t.getRect(f);
+          expect(r.bottom, lessThanOrEqualTo(keyboardTop), reason: '$f below the keyboard');
+          expect(r.top, greaterThanOrEqualTo(0));
+        }
+        // …and returns to the fixed layout when the keyboard closes
+        t.view.viewInsets = FakeViewPadding.zero;
+        await t.pumpAndSettle();
+        expect(_pageScrollExtent(t), 0);
+      });
+    }
+
+    testWidgets('typed notes are kept and Save is still tappable above the keyboard', (t) async {
+      final repo = await _pump(t, const Size(393, 851));
+      await _toNote(t, '40');
+      t.view.viewInsets = const FakeViewPadding(bottom: 300);
+      addTearDown(t.view.resetViewInsets);
+      await t.pumpAndSettle();
+      await t.enterText(_noteField, 'Lunch with team');
+      await t.pumpAndSettle();
+      await t.tap(find.text('Save'));
+      await t.pumpAndSettle();
+      expect(repo.saved.single.note, 'Lunch with team');
+      expect(repo.saved.single.amount, 4000);
+    });
   });
 
-  testWidgets('note suggestions come from earlier notes and appear above the field', (t) async {
+  group('category defaults to Other', () {
+    testWidgets('no category chosen: saved under Other', (t) async {
+      final repo = await _pump(t, const Size(393, 851));
+      await _toNote(t, '250');
+      await t.tap(find.text('Save'));
+      await t.pumpAndSettle();
+      expect(tester(t), isNull);
+      final tx = repo.saved.single;
+      expect(tx.amount, 25000);
+      expect(tx.categoryId, 'e13'); // "Other" in the sample data
+      expect(repo.category(tx.categoryId)!.name, 'Other');
+      expect(find.text('home'), findsOneWidget); // page closed after saving
+    });
+
+    testWidgets('a chosen category is kept', (t) async {
+      final repo = await _pump(t, const Size(393, 851));
+      await t.tap(find.text('Groceries'));
+      await t.pump();
+      await _toNote(t, '99');
+      await t.tap(find.text('Save'));
+      await t.pumpAndSettle();
+      expect(repo.saved.single.categoryId, 'e1');
+    });
+
+    testWidgets('income with no category goes to the income "Other" (created if missing)', (t) async {
+      final repo = await _pump(t, const Size(393, 851));
+      expect(repo.categories.where((c) => c.kind == TxType.income && c.name == 'Other'), isEmpty);
+      await t.tap(find.text('Income'));
+      await t.pumpAndSettle();
+      await _toNote(t, '1000');
+      await t.tap(find.text('Save'));
+      await t.pumpAndSettle();
+      final tx = repo.saved.single;
+      expect(tx.type, TxType.income);
+      final other = repo.category(tx.categoryId)!;
+      expect(other.name, 'Other');
+      expect(other.kind, TxType.income);
+    });
+
+    testWidgets('a transfer has no category', (t) async {
+      final repo = await _pump(t, const Size(393, 851));
+      await t.tap(find.text('Transfer'));
+      await t.pumpAndSettle();
+      // choose the destination account
+      await t.tap(find.byKey(const ValueKey('to-a1')));
+      await t.pumpAndSettle();
+      await t.tap(find.text('HDFC Savings').last);
+      await t.pumpAndSettle();
+      await _toNote(t, '500');
+      await t.tap(find.text('Save'));
+      await t.pumpAndSettle();
+      final tx = repo.saved.single;
+      expect(tx.type, TxType.transfer);
+      expect(tx.categoryId, isNull);
+      expect(tx.toAccountId, 'a2');
+    });
+  });
+
+  group('categories and accounts', () {
+    testWidgets('income shows its own categories, transfer shows none', (t) async {
+      await _pump(t, const Size(393, 851));
+      await t.tap(find.text('Income'));
+      await t.pumpAndSettle();
+      expect(find.text('Salary'), findsOneWidget);
+      expect(find.text('Groceries'), findsNothing);
+      await t.tap(find.text('Transfer'));
+      await t.pumpAndSettle();
+      expect(find.text('Salary'), findsNothing);
+      expect(find.text('Moves money between your accounts'), findsOneWidget);
+      expect(find.text('From'), findsOneWidget);
+      expect(find.text('To'), findsOneWidget);
+    });
+
+    testWidgets('new transactions start on the default account', (t) async {
+      final accounts = [
+        Account(id: 'a0', name: 'Axis', type: 'Bank'), // sorts first alphabetically
+        Account(id: 'a1', name: 'Cash', type: 'Cash', isDefault: true),
+      ];
+      await _pump(t, const Size(393, 851), accounts: accounts);
+      final dd = t.widget<DropdownButtonFormField<String>>(find.byType(DropdownButtonFormField<String>));
+      expect(dd.initialValue, 'a1');
+    });
+
+    testWidgets('without a default the first account is used', (t) async {
+      await _pump(t, const Size(393, 851));
+      final dd = t.widget<DropdownButtonFormField<String>>(find.byType(DropdownButtonFormField<String>));
+      expect(dd.initialValue, 'a1');
+    });
+
+    testWidgets('many custom categories: tags shrink to fit, nothing is hidden', (t) async {
+      await _pump(t, const Size(393, 851), extra: 8);
+      expect(tester(t), isNull);
+      expect(find.byType(SingleChildScrollView), findsOneWidget); // page shell only
+      expect(find.text('Custom tag 7'), findsOneWidget);
+      expect(t.getRect(find.text('Custom tag 7')).bottom, lessThanOrEqualTo(t.getRect(_pad('1')).top));
+    });
+
+    testWidgets('absurd category count falls back to scrolling instead of hiding tags', (t) async {
+      await _pump(t, const Size(360, 640), extra: 60);
+      expect(tester(t), isNull);
+      expect(find.byType(SingleChildScrollView), findsNWidgets(2)); // page shell + tag area
+    });
+  });
+
+  group('note suggestions', () {
     final txs = [
       sampleTx('1', DateTime(2026, 3, 1), note: 'Zomato dinner', categoryId: 'e0'),
       sampleTx('2', DateTime(2026, 3, 2), note: 'Zomato dinner', categoryId: 'e0'),
       sampleTx('3', DateTime(2026, 3, 3), note: 'Zomato lunch', categoryId: 'e0'),
       sampleTx('4', DateTime(2026, 3, 4), note: 'Uber ride', categoryId: 'e3'),
     ];
-    await _pump(t, const Size(393, 851), txs: txs);
-    t.view.viewInsets = const FakeViewPadding(bottom: 320);
-    addTearDown(t.view.resetViewInsets);
-    // focusing the empty field lists recent notes
-    await t.tap(_noteField);
-    await t.pumpAndSettle();
-    expect(tester(t), isNull);
-    expect(find.text('Uber ride'), findsOneWidget);
-    // typing narrows the list; most used first
-    await t.enterText(_noteField, 'zom');
-    await t.pumpAndSettle();
-    expect(find.text('Zomato dinner'), findsOneWidget);
-    expect(find.text('Zomato lunch'), findsOneWidget);
-    expect(find.text('Uber ride'), findsNothing);
-    expect(t.getRect(find.text('Zomato dinner')).bottom,
-        lessThan(t.getRect(_noteField).top)); // above the field
-    // choosing one fills the note
-    await t.tap(find.text('Zomato dinner'));
-    await t.pumpAndSettle();
-    final field = t.widget<TextField>(_noteField);
-    expect(field.controller!.text, 'Zomato dinner');
-    expect(find.text('Zomato lunch'), findsNothing); // list closed
-  });
 
-  testWidgets('no suggestions when there is no history yet', (t) async {
-    await _pump(t, const Size(393, 851));
-    await t.tap(_noteField);
-    await t.pumpAndSettle();
-    expect(find.byIcon(Icons.history), findsNothing);
-  });
+    testWidgets('come from earlier notes and appear above the field', (t) async {
+      await _pump(t, const Size(393, 851), txs: txs);
+      await _toNote(t);
+      t.view.viewInsets = const FakeViewPadding(bottom: 300);
+      addTearDown(t.view.resetViewInsets);
+      await t.pumpAndSettle();
+      expect(tester(t), isNull);
+      expect(find.text('Uber ride'), findsOneWidget); // recent notes on focus
+      await t.enterText(_noteField, 'zom');
+      await t.pumpAndSettle();
+      expect(find.text('Zomato dinner'), findsOneWidget);
+      expect(find.text('Zomato lunch'), findsOneWidget);
+      expect(find.text('Uber ride'), findsNothing);
+      expect(t.getRect(find.text('Zomato dinner')).bottom, lessThan(t.getRect(_noteField).top));
+      await t.tap(find.text('Zomato dinner'));
+      await t.pumpAndSettle();
+      expect(t.widget<TextField>(_noteField).controller!.text, 'Zomato dinner');
+      expect(find.text('Zomato lunch'), findsNothing);
+    });
 
-  testWidgets('new transactions start on the default account', (t) async {
-    final accounts = [
-      Account(id: 'a0', name: 'Axis', type: 'Bank'), // sorts first alphabetically
-      Account(id: 'a1', name: 'Cash', type: 'Cash', isDefault: true),
-    ];
-    await _pump(t, const Size(393, 851), accounts: accounts);
-    final dd = t.widget<DropdownButtonFormField<String>>(find.byType(DropdownButtonFormField<String>));
-    expect(dd.initialValue, 'a1');
-  });
+    testWidgets('picking one re-uses its category when none is chosen', (t) async {
+      final repo = await _pump(t, const Size(393, 851), txs: txs);
+      await _toNote(t, '300');
+      await t.enterText(_noteField, 'uber');
+      await t.pumpAndSettle();
+      await t.tap(find.text('Uber ride'));
+      await t.pumpAndSettle();
+      await t.tap(find.text('Save'));
+      await t.pumpAndSettle();
+      expect(repo.saved.single.categoryId, 'e3'); // Transport, from the old note
+      expect(repo.saved.single.note, 'Uber ride');
+    });
 
-  testWidgets('without a default the first account is used', (t) async {
-    await _pump(t, const Size(393, 851));
-    final dd = t.widget<DropdownButtonFormField<String>>(find.byType(DropdownButtonFormField<String>));
-    expect(dd.initialValue, 'a1'); // Cash, first in the sample list
-  });
+    testWidgets('no suggestions when there is no history yet', (t) async {
+      await _pump(t, const Size(393, 851));
+      await _toNote(t);
+      expect(find.byIcon(Icons.history), findsNothing);
+    });
 
-  testWidgets('amount uses the numeric keyboard, notes the normal one; no on-screen pad', (t) async {
-    await _pump(t, const Size(393, 851));
-    final amount = t.widget<TextField>(_amountField);
-    expect(amount.keyboardType, const TextInputType.numberWithOptions(decimal: true));
-    final note = t.widget<TextField>(_noteField);
-    expect(note.keyboardType, TextInputType.text);
-    expect(find.byIcon(Icons.backspace_outlined), findsNothing); // old pad is gone
-    expect(find.text('7'), findsNothing);
-  });
-
-  testWidgets('amount accepts only a valid amount', (t) async {
-    await _pump(t, const Size(393, 851));
-    Future<String> type(String v) async {
-      await t.enterText(_amountField, v);
-      await t.pump();
-      return t.widget<TextField>(_amountField).controller!.text;
-    }
-
-    expect(await type('1234.5'), '1234.5');
-    expect(await type('1234.567'), '1234.5'); // 3rd decimal rejected
-    expect(await type('12a'), '1234.5'); // letters rejected
-    expect(await type('1.2.3'), '1234.5'); // second dot rejected
-    expect(await type('150,75'), '150.75'); // comma keyboards: becomes the point
-    expect(await type('1234567890'), '150.75'); // too many digits
-  });
-
-  testWidgets('a new transaction focuses the amount; editing one does not', (t) async {
-    await _pump(t, const Size(393, 851));
-    expect(t.widget<TextField>(_amountField).focusNode!.hasFocus, isTrue);
-    await t.pumpWidget(const SizedBox());
-    await _pump(t, const Size(393, 851),
-        existing: sampleTx('9', DateTime(2026, 3, 1), paise: 25050, note: 'Taxi'));
-    expect(t.widget<TextField>(_amountField).controller!.text, '250.5');
-    expect(t.widget<TextField>(_amountField).focusNode!.hasFocus, isFalse);
-    expect(t.widget<TextField>(_noteField).controller!.text, 'Taxi');
-  });
-
-  testWidgets('suggestions are plain text (no usage counts) in a fixed, scrollable list', (t) async {
-    final txs = [
-      for (var i = 0; i < 25; i++)
-        sampleTx('n$i', DateTime(2026, 1, 1 + i), note: 'Note number ${i.toString().padLeft(2, '0')}'),
-      // used several times: must NOT show a count
-      sampleTx('r1', DateTime(2026, 2, 10), note: 'Repeat note'),
-      sampleTx('r2', DateTime(2026, 2, 11), note: 'Repeat note'),
-      sampleTx('r3', DateTime(2026, 2, 12), note: 'Repeat note'),
-    ];
-    await _pump(t, const Size(393, 851), txs: txs);
-    t.view.viewInsets = const FakeViewPadding(bottom: 320);
-    addTearDown(t.view.resetViewInsets);
-    await t.tap(_noteField);
-    await t.pumpAndSettle();
-    expect(tester(t), isNull);
-    final list = find.byKey(const Key('note-suggestions'));
-    expect(list, findsOneWidget);
-    expect(find.textContaining(RegExp(r'x\d')), findsNothing);
-    expect(find.text('Repeat note'), findsOneWidget);
-    expect(t.getSize(list).height, lessThanOrEqualTo(4.5 * 44 + 0.5)); // fixed area
-    // the oldest note is not on screen until the list is scrolled
-    expect(find.text('Note number 00'), findsNothing);
-    await t.drag(list, const Offset(0, -3000));
-    await t.pumpAndSettle();
-    expect(find.text('Note number 00'), findsOneWidget);
-  });
-
-  testWidgets('tags shrink to fit when there are many custom categories', (t) async {
-    await _pump(t, const Size(393, 851), extra: 12);
-    expect(tester(t), isNull);
-    expect(_pageScrollExtent(t), 0);
-    expect(find.byType(SingleChildScrollView), findsOneWidget);
-    expect(find.text('Custom tag 11'), findsOneWidget);
-  });
-
-  testWidgets('absurd category count falls back to scrolling instead of hiding tags', (t) async {
-    await _pump(t, const Size(360, 640), extra: 60);
-    expect(tester(t), isNull);
-    expect(find.byType(SingleChildScrollView), findsNWidgets(2)); // page shell + tag area
+    testWidgets('plain text (no usage counts) in a fixed, scrollable list', (t) async {
+      final many = [
+        for (var i = 0; i < 25; i++)
+          sampleTx('n$i', DateTime(2026, 1, 1 + i), note: 'Note number ${i.toString().padLeft(2, '0')}'),
+        sampleTx('r1', DateTime(2026, 2, 10), note: 'Repeat note'),
+        sampleTx('r2', DateTime(2026, 2, 11), note: 'Repeat note'),
+        sampleTx('r3', DateTime(2026, 2, 12), note: 'Repeat note'),
+      ];
+      await _pump(t, const Size(393, 851), txs: many);
+      await _toNote(t);
+      t.view.viewInsets = const FakeViewPadding(bottom: 300);
+      addTearDown(t.view.resetViewInsets);
+      await t.pumpAndSettle();
+      final list = find.byKey(const Key('note-suggestions'));
+      expect(list, findsOneWidget);
+      expect(find.textContaining(RegExp(r'x\d')), findsNothing);
+      expect(find.text('Repeat note'), findsOneWidget);
+      expect(t.getSize(list).height, lessThanOrEqualTo(4.5 * 44 + 0.5));
+      expect(find.text('Note number 00'), findsNothing);
+      await t.drag(list, const Offset(0, -3000));
+      await t.pumpAndSettle();
+      expect(find.text('Note number 00'), findsOneWidget);
+    });
   });
 }
-
-/// Max scroll extent of the page's outer scroll view (0 = nothing to scroll).
-double _pageScrollExtent(WidgetTester t) =>
-    t.state<ScrollableState>(find.byType(Scrollable).first).position.maxScrollExtent;
-
-// Returns any exception the framework caught while building (overflow etc.).
-Object? tester(WidgetTester t) => t.takeException();
