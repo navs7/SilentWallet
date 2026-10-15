@@ -57,6 +57,30 @@ class FakeRepo extends Repo {
   Future<bool> hasManualEntryOn(DateTime day) async => manualEntryToday;
 
   @override
+  Future<void> saveAccount(Account a) async {
+    if (a.archived) a.isDefault = false;
+    accounts = [
+      ...accounts.where((x) => x.id != a.id).map((x) {
+        if (a.isDefault) x.isDefault = false;
+        return x;
+      }),
+      a,
+    ];
+    notifyListeners();
+  }
+
+  @override
+  Future<bool> deleteCategory(String id) async {
+    if (txs.any((t) => t.categoryId == id) ||
+        recurring.any((r) => r.categoryId == id)) {
+      return false; // in use, like the real one
+    }
+    categories = categories.where((c) => c.id != id).toList();
+    notifyListeners();
+    return true;
+  }
+
+  @override
   Future<void> saveCategory(Category c) async {
     categories = [...categories.where((x) => x.id != c.id), c];
     notifyListeners();

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../core/models.dart';
 import '../core/repo.dart';
 import '../util.dart';
+import 'categories_screen.dart';
 
 class AccountsScreen extends StatelessWidget {
   const AccountsScreen({super.key});
@@ -38,6 +39,7 @@ class AccountsScreen extends StatelessWidget {
                 ),
               ),
             ),
+            _header(context, 'Accounts'),
             for (final a in repo.accounts)
               ListTile(
                 leading: CircleAvatar(
@@ -80,6 +82,12 @@ class AccountsScreen extends StatelessWidget {
                 label: const Text('New account'),
               ),
             ),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 14),
+              child: Divider(),
+            ),
+            _header(context, 'Categories'),
+            const CategoriesSection(),
           ],
         );
       },
@@ -212,3 +220,12 @@ Future<void> showAccountEditor(BuildContext context, Account? existing) async {
     ),
   );
 }
+
+Widget _header(BuildContext context, String text) => Padding(
+  padding: const EdgeInsets.fromLTRB(16, 10, 16, 2),
+  child: Text(
+    text,
+    style: Theme.of(context).textTheme.titleSmall
+        ?.copyWith(fontWeight: FontWeight.w700),
+  ),
+);
