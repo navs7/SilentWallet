@@ -1,3 +1,4 @@
+// ignore_for_file: invalid_use_of_visible_for_testing_member
 // Renders before / after images of the app's typography. Not part of the normal
 // test run; use:  flutter test tool/preview/font_preview_test.dart
 // Images are written to build/preview/.
