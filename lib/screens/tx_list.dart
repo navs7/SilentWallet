@@ -245,7 +245,19 @@ class _TxListScreenState extends State<TxListScreen> {
                         ],
                       ),
                     ),
-                    for (final t in list) TxTile(tx: t),
+                    Card(
+                      key: Key('day-card-${d.year}-${d.month}-${d.day}'),
+                      elevation: 0,
+                      color: Theme.of(context).colorScheme.surfaceContainer,
+                      margin: const EdgeInsets.symmetric(horizontal: 10),
+                      clipBehavior: Clip.antiAlias,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Column(
+                        children: [for (final t in list) TxTile(tx: t)],
+                      ),
+                    ),
                   ],
                 );
               },
@@ -332,92 +344,80 @@ class TxTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final repo = context.read<Repo>();
+    final cs = Theme.of(context).colorScheme;
     final cat = repo.category(tx.categoryId);
     final acc = repo.account(tx.accountId)?.name ?? '?';
     final isTransfer = tx.type == TxType.transfer;
     final color = switch (tx.type) {
       TxType.income => Colors.green.shade600,
       TxType.expense => Colors.red.shade400,
-      TxType.transfer => Theme.of(context).colorScheme.primary,
+      TxType.transfer => cs.primary,
     };
     final sign = switch (tx.type) {
       TxType.income => '+',
       TxType.expense => '-',
       TxType.transfer => '',
     };
-    final title = isTransfer ? 'Transfer' : (cat?.name ?? 'Uncategorized');
-    final subtitle = [
-      isTransfer ? '$acc → ${repo.account(tx.toAccountId)?.name ?? '?'}' : acc,
-      if (tx.note.isNotEmpty) tx.note,
-    ].join(' • ');
-    final cs = Theme.of(context).colorScheme;
-    return Card(
-      key: Key('tx-card-${tx.id}'),
-      elevation: 0,
-      color: cs.surfaceContainer,
-      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: DecoratedBox(
-        // a thin edge in the amount's colour: red expense, green income
-        decoration: BoxDecoration(
-          border: Border(left: BorderSide(color: color, width: 3.5)),
+    final note = tx.note.trim();
+    final kind = isTransfer ? 'Transfer' : (cat?.name ?? 'Uncategorized');
+    final route = '$acc → ${repo.account(tx.toAccountId)?.name ?? '?'}';
+    // Main text is the note; the category (and account) go underneath. With no
+    // note, the category becomes the main text.
+    final title = note.isNotEmpty ? note : kind;
+    final subtitle = isTransfer
+        ? route
+        : (note.isNotEmpty ? '$kind • $acc' : acc);
+    return ListTile(
+      key: Key('tx-row-${tx.id}'),
+      leading: CircleAvatar(
+        radius: 13,
+        backgroundColor: isTransfer
+            ? cs.primaryContainer
+            : Color(cat?.color ?? 0xFF90A4AE),
+        child: Icon(
+          isTransfer ? Icons.swap_horiz : (cat?.iconData ?? Icons.category),
+          size: kListIconSize,
+          color: isTransfer ? cs.onPrimaryContainer : Colors.white,
         ),
-        child: ListTile(
-          leading: CircleAvatar(
-            radius: 16,
-            backgroundColor: isTransfer
-                ? Theme.of(context).colorScheme.primaryContainer
-                : Color(cat?.color ?? 0xFF90A4AE),
-            child: Icon(
-              isTransfer ? Icons.swap_horiz : (cat?.iconData ?? Icons.category),
-              size: kCategoryIconSize,
-              color: isTransfer
-                  ? Theme.of(context).colorScheme.onPrimaryContainer
-                  : Colors.white,
+      ),
+      title: Text(
+        title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+      ),
+      subtitle: Text(
+        subtitle,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (tx.receipt != null)
+            const Padding(
+              padding: EdgeInsets.only(right: 6),
+              child: Icon(Icons.receipt, size: 18),
             ),
-          ),
-          title: Text(
-            title,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-          ),
-          subtitle: Text(
-            subtitle,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+          if (tx.recurringId != null)
+            const Padding(
+              padding: EdgeInsets.only(right: 6),
+              child: Icon(Icons.repeat, size: 18),
+            ),
+          Text(
+            '$sign${money(tx.amount)}',
             style: TextStyle(
-              fontSize: 13,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              color: color,
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
             ),
           ),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (tx.receipt != null)
-                const Padding(
-                  padding: EdgeInsets.only(right: 6),
-                  child: Icon(Icons.receipt, size: 18),
-                ),
-              if (tx.recurringId != null)
-                const Padding(
-                  padding: EdgeInsets.only(right: 6),
-                  child: Icon(Icons.repeat, size: 18),
-                ),
-              Text(
-                '$sign${money(tx.amount)}',
-                style: TextStyle(
-                  color: color,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => TxEditScreen(existing: tx)),
-          ),
-        ),
+        ],
+      ),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => TxEditScreen(existing: tx)),
       ),
     );
   }

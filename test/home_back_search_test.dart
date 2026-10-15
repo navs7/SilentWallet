@@ -118,65 +118,90 @@ void main() {
   });
 
   group('transaction list design', () {
-    final day = DateTime.now();
-    final noon = DateTime(day.year, day.month, day.day, 12);
+    final now = DateTime.now();
+    // two different days, both inside the current month
+    final d2 = DateTime(now.year, now.month, 2, 12);
+    final d3 = DateTime(now.year, now.month, 3, 12);
     final txs = [
-      sampleTx('1', noon, note: 'Coffee', paise: 12000, categoryId: 'e0'),
-      sampleTx('2', noon.add(const Duration(hours: 1)), note: 'Lunch', paise: 25000, categoryId: 'e0'),
-      Tx(
-        id: '3',
-        type: TxType.income,
-        amount: 500000,
-        accountId: 'a1',
-        categoryId: 'i1',
-        note: 'Salary',
-        date: noon.add(const Duration(hours: 2)),
-      ),
+      sampleTx('1', d3.add(const Duration(hours: 1)), note: 'Coffee', paise: 12000, categoryId: 'e0'),
+      sampleTx('2', d3, note: 'Lunch', paise: 25000, categoryId: 'e0'),
+      Tx(id: '3', type: TxType.income, amount: 500000, accountId: 'a1', categoryId: 'i1', note: 'Salary', date: d3.subtract(const Duration(hours: 1))),
+      sampleTx('4', d2, note: '', paise: 9900, categoryId: 'e1'),
+      Tx(id: '5', type: TxType.transfer, amount: 100000, accountId: 'a1', toAccountId: 'a2', note: '', date: d2.subtract(const Duration(hours: 1))),
+      Tx(id: '6', type: TxType.transfer, amount: 50000, accountId: 'a2', toAccountId: 'a1', note: 'Rent share', date: d2.subtract(const Duration(hours: 2))),
     ];
-
     ColorScheme scheme(WidgetTester t) => Theme.of(t.element(find.byType(HomeScreen))).colorScheme;
+    Finder row(String id) => find.byKey(Key('tx-row-$id'));
+    Finder dayCard(DateTime d) => find.byKey(Key('day-card-${d.year}-${d.month}-${d.day}'));
+    Text titleOf(WidgetTester t, String id) => t.widget<ListTile>(row(id)).title as Text;
+    Text subtitleOf(WidgetTester t, String id) => t.widget<ListTile>(row(id)).subtitle as Text;
 
-    testWidgets('every transaction is its own soft, rounded tile (no outline)', (t) async {
+    testWidgets('entries of the same date are one block: no gaps, no dividers', (t) async {
       await _pumpHome(t, txs: txs);
+      final card = dayCard(d3);
+      expect(card, findsOneWidget);
       for (final id in ['1', '2', '3']) {
-        final card = find.byKey(Key('tx-card-$id'));
-        expect(card, findsOneWidget, reason: 'tx $id');
-        final w = t.widget<Card>(card);
-        expect(w.color, scheme(t).surfaceContainer);
-        final shape = w.shape as RoundedRectangleBorder;
-        expect(shape.side, BorderSide.none); // no border line
-        expect(shape.borderRadius, isNot(BorderRadius.zero)); // rounded
+        expect(find.descendant(of: card, matching: row(id)), findsOneWidget, reason: 'row $id in the day block');
       }
-    });
-
-    testWidgets('no divider lines or boxed day groups', (t) async {
-      await _pumpHome(t, txs: txs);
       expect(find.byType(Divider), findsNothing);
-      expect(find.byKey(Key('day-${day.year}-${day.month}-${day.day}')), findsNothing);
+      // rows touch each other (newest first: 1, 2, 3)
+      final r1 = t.getRect(row('1')), r2 = t.getRect(row('2')), r3 = t.getRect(row('3'));
+      expect(r2.top - r1.bottom, closeTo(0, 0.5));
+      expect(r3.top - r2.bottom, closeTo(0, 0.5));
+      // one soft rounded block, no outline
+      final w = t.widget<Card>(card);
+      expect(w.color, scheme(t).surfaceContainer);
+      expect((w.shape as RoundedRectangleBorder).side, BorderSide.none);
     });
 
-    testWidgets('each day has a plain header with its label and net total', (t) async {
+    testWidgets('different dates are clearly separate: header and a gap between blocks', (t) async {
       await _pumpHome(t, txs: txs);
-      final header = find.byKey(Key('day-header-${day.year}-${day.month}-${day.day}'));
-      expect(header, findsOneWidget);
-      expect(find.descendant(of: header, matching: find.text('Today')), findsOneWidget);
-      // net = +5000 income - 120 - 250 expenses = 4630
-      expect(find.descendant(of: header, matching: find.textContaining('4,630.00')), findsOneWidget);
-      // the header is not boxed: no coloured background container
-      expect(find.descendant(of: header, matching: find.byType(Card)), findsNothing);
+      expect(dayCard(d3), findsOneWidget);
+      expect(dayCard(d2), findsOneWidget);
+      final upper = t.getRect(dayCard(d3)), lower = t.getRect(dayCard(d2));
+      expect(lower.top - upper.bottom, greaterThan(20)); // date header sits between
+      final header = find.byKey(Key('day-header-${d2.year}-${d2.month}-${d2.day}'));
+      expect(find.descendant(of: header, matching: find.textContaining('2 ')), findsWidgets);
     });
 
-    testWidgets('a thin edge in the amount colour marks expense vs income', (t) async {
+    testWidgets('no coloured edge bar on the left of the rows', (t) async {
       await _pumpHome(t, txs: txs);
-      Color edge(String id) {
-        final box = t.widget<DecoratedBox>(find
-            .descendant(of: find.byKey(Key('tx-card-$id')), matching: find.byType(DecoratedBox))
-            .first);
-        return ((box.decoration as BoxDecoration).border as Border).left.color;
+      for (final box in t.widgetList<DecoratedBox>(find.descendant(of: dayCard(d3), matching: find.byType(DecoratedBox)))) {
+        final d = box.decoration;
+        if (d is BoxDecoration && d.border is Border) {
+          expect((d.border as Border).left.width, 0, reason: 'a left bar is still drawn');
+        }
       }
+    });
 
-      expect(edge('1'), Colors.red.shade400); // expense
-      expect(edge('3'), Colors.green.shade600); // income
+    testWidgets('the note is the main text; category and account go underneath', (t) async {
+      await _pumpHome(t, txs: txs);
+      expect(titleOf(t, '1').data, 'Coffee');
+      expect(subtitleOf(t, '1').data, 'Food & Dining • Cash');
+      expect(titleOf(t, '3').data, 'Salary');
+      expect(subtitleOf(t, '3').data, 'Salary • Cash'); // income category is "Salary" too
+    });
+
+    testWidgets('without a note the category is the main text', (t) async {
+      await _pumpHome(t, txs: txs);
+      expect(titleOf(t, '4').data, 'Groceries');
+      expect(subtitleOf(t, '4').data, 'Cash');
+    });
+
+    testWidgets('transfers: note or "Transfer" as the main text, the route underneath', (t) async {
+      await _pumpHome(t, txs: txs);
+      expect(titleOf(t, '5').data, 'Transfer');
+      expect(subtitleOf(t, '5').data, 'Cash → HDFC Savings');
+      expect(titleOf(t, '6').data, 'Rent share');
+      expect(subtitleOf(t, '6').data, 'HDFC Savings → Cash');
+    });
+
+    testWidgets('amounts keep their red / green colour', (t) async {
+      await _pumpHome(t, txs: txs);
+      final expense = t.widget<Text>(find.descendant(of: row('1'), matching: find.textContaining('120')));
+      final income = t.widget<Text>(find.descendant(of: row('3'), matching: find.textContaining('5,000')));
+      expect(expense.style!.color, Colors.red.shade400);
+      expect(income.style!.color, Colors.green.shade600);
     });
 
     testWidgets('the totals card is a soft tile too', (t) async {
@@ -186,14 +211,14 @@ void main() {
       expect((totals.shape as RoundedRectangleBorder).side, BorderSide.none);
     });
 
-    testWidgets('search results use the same tiles', (t) async {
+    testWidgets('searching by note still finds the entry; results use the same rows', (t) async {
       await _pumpHome(t, txs: txs);
       await t.tap(find.byTooltip('Search'));
       await t.pumpAndSettle();
       await t.enterText(find.byType(TextField), 'coffee');
       await t.pumpAndSettle();
-      expect(find.byKey(const Key('tx-card-1')), findsOneWidget);
-      expect(find.byKey(const Key('tx-card-2')), findsNothing);
+      expect(row('1'), findsOneWidget);
+      expect(row('2'), findsNothing);
       expect(find.byType(Divider), findsNothing);
     });
   });
@@ -240,12 +265,14 @@ void main() {
       expect(t.widget<TextField>(find.byType(TextField)).controller!.text, isEmpty);
     });
 
-    testWidgets('list category icons match the size used on the Add page', (t) async {
+    testWidgets('list category icons are small (smaller than the Add-page tags)', (t) async {
       await _pumpHome(t, txs: txs);
       final row = find.byType(TxTile);
       expect(row, findsOneWidget);
       final icon = t.widget<Icon>(find.descendant(of: row, matching: find.byType(Icon)).first);
-      expect(icon.size, kCategoryIconSize);
+      expect(icon.size, kListIconSize);
+      expect(kListIconSize, lessThan(kCategoryIconSize));
+      expect(t.widget<CircleAvatar>(find.descendant(of: row, matching: find.byType(CircleAvatar))).radius, 13);
     });
   });
 
