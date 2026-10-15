@@ -33,7 +33,9 @@ It has no internet permission, no account, no ads and no cloud. Nothing you ente
 | Find a past transaction | The search icon on **Transactions**: search notes, categories, accounts or amounts, and use **Filters** for time period, account, category and amount range |
 | Choose which account new entries start on | **Accounts** tab → tap an account → **Default account** |
 | Make your own category | **More → Categories** |
+| Make an entry repeat (rent, subscriptions, salary) | The repeat button 🔁 next to the receipt button on the **Add** page |
 | Automatically record rent, subscriptions, salary | **More → Recurring expenses** |
+| Get a daily reminder to add entries | **More → Daily reminder** (on by default at 8:00 pm; skipped if you already added an entry that day; you can change the time or turn it off) |
 
 ## 4. ⚠ Back up regularly — this is important
 

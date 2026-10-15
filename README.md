@@ -15,6 +15,8 @@ An offline expense manager for Android. **Everything stays on the phone** — no
 - A default account that new transactions start on
 - Search across notes, categories, accounts and amounts, with filters for time period, account, category and amount range
 - Recurring rules (daily / weekly / monthly / yearly) that post automatically when due
+- A repeat button on the Add page: save an entry and have it repeat daily / weekly / monthly / yearly
+- A daily reminder at 8:00 pm (on by default, changeable) that is skipped on days you have already added an entry
 - Reports for any month, year, custom date range or all time: income vs expense, category pie chart, monthly trend
 - Receipt photos attached to transactions
 - App lock with fingerprint / face / phone PIN
