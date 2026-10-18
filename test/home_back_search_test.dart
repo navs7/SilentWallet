@@ -105,15 +105,28 @@ void main() {
       expect(find.textContaining('No transactions match'), findsOneWidget);
     });
 
-    testWidgets('empty search box offers recent notes to tap', (t) async {
+    testWidgets('an empty search box shows only the box: no recent notes', (t) async {
       await _pumpHome(t, txs: txs);
       await t.tap(find.byTooltip('Search'));
       await t.pumpAndSettle();
-      expect(find.text('Recent notes'), findsOneWidget);
-      await t.tap(find.widgetWithText(ActionChip, 'Zomato dinner'));
+      expect(find.byType(TextField), findsOneWidget); // the search box
+      expect(find.text('Recent notes'), findsNothing);
+      expect(find.byType(ActionChip), findsNothing);
+      expect(find.byIcon(Icons.history), findsNothing);
+      // nothing from the history is offered, and nothing is listed yet
+      expect(find.textContaining('Zomato dinner'), findsNothing);
+      expect(find.textContaining('result'), findsNothing);
+      expect(find.textContaining('Total'), findsNothing);
+      // typing still works as before
+      await t.enterText(find.byType(TextField), 'zomato');
       await t.pumpAndSettle();
-      expect(t.widget<TextField>(find.byType(TextField)).controller!.text, 'Zomato dinner');
-      expect(find.text('1 result across all dates'), findsOneWidget);
+      expect(find.textContaining('Zomato dinner'), findsOneWidget);
+      // emptying the box again clears the results and offers nothing in their place
+      await t.enterText(find.byType(TextField), '');
+      await t.pumpAndSettle();
+      expect(find.textContaining('Zomato dinner'), findsNothing);
+      expect(find.text('Recent notes'), findsNothing);
+      expect(find.byType(ActionChip), findsNothing);
     });
   });
 
@@ -547,11 +560,12 @@ void main() {
       await t.pumpAndSettle();
       expect(find.byKey(const Key('chip-account')), findsNothing);
       expect(find.byKey(const Key('chip-amount')), findsOneWidget);
-      // clear everything: back to the recent-notes screen
+      // clear everything: an empty search page (no results, no recent notes)
       await t.tap(find.byKey(const Key('chip-clear-all')));
       await t.pumpAndSettle();
       expect(find.byKey(const Key('chip-amount')), findsNothing);
-      expect(find.text('Recent notes'), findsOneWidget);
+      expect(find.text('Recent notes'), findsNothing);
+      expect(find.textContaining('result'), findsNothing);
     });
 
     testWidgets('the Filters button shows a badge while filters are active', (t) async {
@@ -582,7 +596,8 @@ void main() {
       expect(exit.calls, 0);
       await openSearch(t); // ...and reopening starts clean
       expect(find.byKey(const Key('chip-amount')), findsNothing);
-      expect(find.text('Recent notes'), findsOneWidget);
+      expect(find.text('Recent notes'), findsNothing);
+      expect(find.textContaining('result'), findsNothing);
     });
   });
 

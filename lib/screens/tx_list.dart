@@ -61,12 +61,6 @@ class _TxListScreenState extends State<TxListScreen> {
     if (r != null && mounted) setState(() => _filters = r);
   }
 
-  void _useQuery(String q) {
-    _ctl.text = q;
-    _ctl.selection = TextSelection.collapsed(offset: q.length);
-    setState(() => _search = q);
-  }
-
   @override
   Widget build(BuildContext context) {
     final repo = context.watch<Repo>();
@@ -163,8 +157,6 @@ class _TxListScreenState extends State<TxListScreen> {
                   onChanged: (f) => setState(() => _filters = f),
                 ),
               ),
-            if (_searching && !hasQuery)
-              SliverToBoxAdapter(child: _RecentNotes(onPick: _useQuery)),
             if (!_searching || hasQuery) ...[
               SliverToBoxAdapter(
                 child: Card(
@@ -270,50 +262,6 @@ class _TxListScreenState extends State<TxListScreen> {
             ),
             const SliverToBoxAdapter(child: SizedBox(height: 76)),
           ],
-        );
-      },
-    );
-  }
-}
-
-/// Shown under an empty search box: notes used before, one tap to search them.
-class _RecentNotes extends StatelessWidget {
-  final ValueChanged<String> onPick;
-  const _RecentNotes({required this.onPick});
-
-  @override
-  Widget build(BuildContext context) {
-    final repo = context.read<Repo>();
-    return FutureBuilder<List<NoteEntry>>(
-      future: repo.noteHistory(),
-      builder: (context, snap) {
-        final notes = rankNotes(snap.data ?? const [], '', limit: 14);
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                notes.isEmpty
-                    ? 'Type to search across all your notes, categories, accounts and amounts.'
-                    : 'Recent notes',
-                style: Theme.of(context).textTheme.labelLarge,
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  for (final n in notes)
-                    ActionChip(
-                      avatar: const Icon(Icons.history, size: 16),
-                      label: Text(n.note),
-                      onPressed: () => onPick(n.note),
-                    ),
-                ],
-              ),
-            ],
-          ),
         );
       },
     );
