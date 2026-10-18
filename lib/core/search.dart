@@ -19,6 +19,7 @@ bool txMatches(
   final plain = rupees.toStringAsFixed(2).replaceFirst(RegExp(r'\.?0+$'), '');
   final hay = [
     t.note,
+    t.comment,
     categoryName,
     accountName,
     toAccountName,

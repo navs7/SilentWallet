@@ -168,6 +168,7 @@ class Tx {
   String? toAccountId; // transfers only
   String? categoryId;
   String note;
+  String comment; // longer free text, separate from the short note
   DateTime date;
   String? receipt; // encrypted file name
   String? recurringId;
@@ -179,6 +180,7 @@ class Tx {
     this.toAccountId,
     this.categoryId,
     this.note = '',
+    this.comment = '',
     required this.date,
     this.receipt,
     this.recurringId,
@@ -192,6 +194,7 @@ class Tx {
     'to_account_id': toAccountId,
     'category_id': categoryId,
     'note': note,
+    'comment': comment,
     'date': date.millisecondsSinceEpoch,
     'receipt': receipt,
     'recurring_id': recurringId,
@@ -205,6 +208,8 @@ class Tx {
     toAccountId: m['to_account_id'] as String?,
     categoryId: m['category_id'] as String?,
     note: (m['note'] as String?) ?? '',
+    // missing in data saved before comments existed
+    comment: (m['comment'] as String?) ?? '',
     date: DateTime.fromMillisecondsSinceEpoch((m['date'] as num).toInt()),
     receipt: m['receipt'] as String?,
     recurringId: m['recurring_id'] as String?,

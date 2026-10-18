@@ -404,6 +404,18 @@ class TxTile extends StatelessWidget {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (tx.comment.trim().isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: Tooltip(
+                message: tx.comment.trim(),
+                child: Icon(
+                  Icons.chat_bubble_outline,
+                  key: Key('comment-icon-${tx.id}'),
+                  size: 16,
+                ),
+              ),
+            ),
           if (tx.receipt != null)
             const Padding(
               padding: EdgeInsets.only(right: 6),

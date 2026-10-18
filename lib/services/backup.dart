@@ -63,7 +63,7 @@ class BackupService {
         : s;
     final fmt = DateFormat('yyyy-MM-dd');
     final b = StringBuffer(
-      'Date,Type,Amount (INR),Account,To Account,Category,Note\n',
+      'Date,Type,Amount (INR),Account,To Account,Category,Note,Comment\n',
     );
     for (final t in await repo.allTx()) {
       b.writeln(
@@ -75,6 +75,7 @@ class BackupService {
           esc(repo.account(t.toAccountId)?.name ?? ''),
           esc(repo.category(t.categoryId)?.name ?? ''),
           esc(t.note),
+          esc(t.comment),
         ].join(','),
       );
     }

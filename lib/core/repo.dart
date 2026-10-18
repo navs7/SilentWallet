@@ -41,12 +41,15 @@ class Repo extends ChangeNotifier {
     r.db = await openDatabase(
       p.join(dir.path, 'silentwallet.db'),
       password: dbKey, // SQLCipher: whole database file is AES-256 encrypted
-      version: 2,
+      version: 3,
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
           await db.execute(
             'ALTER TABLE accounts ADD COLUMN is_default INTEGER NOT NULL DEFAULT 0',
           );
+        }
+        if (oldVersion < 3) {
+          await db.execute('ALTER TABLE transactions ADD COLUMN comment TEXT');
         }
       },
       onCreate: (db, v) async {
@@ -59,12 +62,11 @@ class Repo extends ChangeNotifier {
           id TEXT PRIMARY KEY, name TEXT NOT NULL, icon TEXT NOT NULL,
           color INTEGER NOT NULL, kind TEXT NOT NULL, is_custom INTEGER NOT NULL DEFAULT 0)''',
         );
-        await db.execute(
-          '''CREATE TABLE transactions(
+        await db.execute('''CREATE TABLE transactions(
           id TEXT PRIMARY KEY, type TEXT NOT NULL, amount INTEGER NOT NULL,
           account_id TEXT NOT NULL, to_account_id TEXT, category_id TEXT,
-          note TEXT, date INTEGER NOT NULL, receipt TEXT, recurring_id TEXT)''',
-        );
+          note TEXT, date INTEGER NOT NULL, receipt TEXT, recurring_id TEXT,
+          comment TEXT)''');
         await db.execute('CREATE INDEX idx_tx_date ON transactions(date)');
         await db.execute(
           '''CREATE TABLE recurring(
@@ -306,8 +308,10 @@ class Repo extends ChangeNotifier {
       args.add(categoryId);
     }
     if (search != null && search.trim().isNotEmpty) {
-      where.add('note LIKE ?');
-      args.add('%${search.trim()}%');
+      where.add('(note LIKE ? OR comment LIKE ?)');
+      args
+        ..add('%${search.trim()}%')
+        ..add('%${search.trim()}%');
     }
     final rows = await db.query(
       'transactions',

@@ -19,6 +19,8 @@ An offline expense manager for Android. **Everything stays on the phone** — no
 - A daily reminder at 8:00 pm (on by default, changeable) that is skipped on days you have already added an entry
 - Reports for any month, year, custom date range or all time: income vs expense, category pie chart, monthly trend
 - Receipt photos attached to transactions
+- A comment box on every entry (longer text, separate from the short note), searchable and included in the CSV export
+- A copy button on the edit page that starts a new entry pre-filled from an existing one
 - App lock with fingerprint / face / phone PIN
 - Password-encrypted backup and restore, with a weekly local reminder
 - CSV export for spreadsheets

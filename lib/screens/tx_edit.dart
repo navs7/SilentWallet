@@ -22,7 +22,10 @@ import 'amount_pad.dart';
 /// fit whatever height is left.
 class TxEditScreen extends StatefulWidget {
   final Tx? existing;
-  const TxEditScreen({super.key, this.existing});
+
+  /// Start a NEW entry pre-filled from this one (the Copy button).
+  final Tx? copyOf;
+  const TxEditScreen({super.key, this.existing, this.copyOf});
   @override
   State<TxEditScreen> createState() => _TxEditScreenState();
 }
@@ -38,6 +41,8 @@ class _TxEditScreenState extends State<TxEditScreen> {
   DateTime? _repeatEnd; // optional last date of the repeat
   final _noteCtl = TextEditingController();
   final _noteFocus = FocusNode();
+  final _commentCtl = TextEditingController();
+  final _commentFocus = FocusNode();
   List<NoteEntry> _history = []; // notes used before, for suggestions
   String? _categoryId;
   String? _accountId;
@@ -53,13 +58,16 @@ class _TxEditScreenState extends State<TxEditScreen> {
   @override
   void initState() {
     super.initState();
-    final t = widget.existing;
+    // Editing fills the page from the entry; copying fills it from the copy
+    // draft (but it is saved as a new entry, dated today, without a receipt).
+    final t = widget.existing ?? widget.copyOf;
     final repo = context.read<Repo>();
     _type = t?.type ?? TxType.expense;
     _padOpen = t == null; // new transaction: start on the amount keypad
     _amountFocus.addListener(_onAmountFocus);
     _noteFocus.addListener(_onNoteFocus);
-    if (t != null) {
+    _commentFocus.addListener(_onNoteFocus);
+    if (t != null && t.amount > 0) {
       var s = (t.amount / 100).toStringAsFixed(2);
       if (s.endsWith('.00')) {
         s = s.substring(0, s.length - 3);
@@ -69,6 +77,7 @@ class _TxEditScreenState extends State<TxEditScreen> {
       _amountCtl.text = s;
     }
     _noteCtl.text = t?.note ?? '';
+    _commentCtl.text = t?.comment ?? '';
     _categoryId = t?.categoryId;
     // New transactions start on the account marked as default.
     _accountId = t?.accountId ?? defaultAccountId(repo.accounts);
@@ -76,8 +85,8 @@ class _TxEditScreenState extends State<TxEditScreen> {
       if (mounted) setState(() => _history = h);
     });
     _toAccountId = t?.toAccountId;
-    _date = t?.date ?? DateTime.now();
-    _receiptName = t?.receipt;
+    _date = widget.existing?.date ?? DateTime.now();
+    _receiptName = widget.existing?.receipt;
     if (_receiptName != null) {
       repo.readReceipt(_receiptName!).then((b) {
         if (mounted) setState(() => _receiptPreview = b);
@@ -89,8 +98,11 @@ class _TxEditScreenState extends State<TxEditScreen> {
   void dispose() {
     _amountFocus.removeListener(_onAmountFocus);
     _noteFocus.removeListener(_onNoteFocus);
+    _commentFocus.removeListener(_onNoteFocus);
     _noteCtl.dispose();
     _noteFocus.dispose();
+    _commentCtl.dispose();
+    _commentFocus.dispose();
     _amountCtl.dispose();
     _amountFocus.dispose();
     _scroll.dispose();
@@ -104,7 +116,9 @@ class _TxEditScreenState extends State<TxEditScreen> {
 
   void _onNoteFocus() {
     if (!mounted) return;
-    if (_noteFocus.hasFocus) setState(() => _padOpen = false);
+    if (_noteFocus.hasFocus || _commentFocus.hasFocus) {
+      setState(() => _padOpen = false);
+    }
   }
 
   // ---------- amount ----------
@@ -422,6 +436,7 @@ class _TxEditScreenState extends State<TxEditScreen> {
         toAccountId: _type == TxType.transfer ? _toAccountId : null,
         categoryId: categoryId,
         note: _noteCtl.text.trim(),
+        comment: _commentCtl.text.trim(),
         date: _date,
         receipt: receipt,
         recurringId: ruleId ?? old?.recurringId,
@@ -434,6 +449,27 @@ class _TxEditScreenState extends State<TxEditScreen> {
       );
     }
     if (mounted) Navigator.pop(context);
+  }
+
+  /// Copy: open a NEW entry pre-filled with what is on screen (amount, account,
+  /// category, note, comment). It is dated today and has no receipt; the
+  /// original is left as it was saved.
+  void _copy() {
+    final draft = Tx(
+      id: newId(),
+      type: _type,
+      amount: _amountPaise ?? 0,
+      accountId: _accountId ?? widget.existing!.accountId,
+      toAccountId: _type == TxType.transfer ? _toAccountId : null,
+      categoryId: _type == TxType.transfer ? null : _categoryId,
+      note: _noteCtl.text.trim(),
+      comment: _commentCtl.text.trim(),
+      date: DateTime.now(),
+    );
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => TxEditScreen(copyOf: draft)),
+    );
   }
 
   Future<void> _delete() async {
@@ -508,10 +544,10 @@ class _TxEditScreenState extends State<TxEditScreen> {
           focusNode: focus,
           maxLines: 1,
           keyboardType: TextInputType.text, // normal keyboard for notes
-          textInputAction: TextInputAction.done,
+          textInputAction: TextInputAction.next,
           textCapitalization: TextCapitalization.sentences,
           style: const TextStyle(fontSize: 15),
-          onSubmitted: (_) => focus.unfocus(),
+          onSubmitted: (_) => _commentFocus.requestFocus(),
           onTapOutside: (_) => focus.unfocus(),
           decoration: const InputDecoration(
             hintText: 'Add a note',
@@ -610,14 +646,27 @@ class _TxEditScreenState extends State<TxEditScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          widget.existing == null ? 'Add transaction' : 'Edit transaction',
+          widget.existing != null
+              ? 'Edit transaction'
+              : (widget.copyOf != null
+                    ? 'Copy transaction'
+                    : 'Add transaction'),
         ),
         actions: [
-          if (widget.existing != null)
+          if (widget.existing != null) ...[
             IconButton(
+              key: const Key('copy-button'),
+              tooltip: 'Copy transaction',
+              onPressed: _copy,
+              icon: const Icon(Icons.content_copy_outlined),
+            ),
+            IconButton(
+              key: const Key('delete-button'),
+              tooltip: 'Delete',
               onPressed: _delete,
               icon: const Icon(Icons.delete_outline),
             ),
+          ],
         ],
       ),
       body: SafeArea(
@@ -639,7 +688,8 @@ class _TxEditScreenState extends State<TxEditScreen> {
             // Everything above the keypad is ~190px; keep >=130px for tags.
             final rowH = ((fullH - 190 - 130 - 44) / padRows).clamp(38.0, 50.0);
             final padH = showPad ? AmountPad.heightFor(rowH, _calc) : 0.0;
-            if (keyboard > 0 && _noteFocus.hasFocus) {
+            if (keyboard > 0 &&
+                (_noteFocus.hasFocus || _commentFocus.hasFocus)) {
               // Scroll up so note, date, receipt and Save sit above the keyboard.
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 if (_scroll.hasClients) {
@@ -709,7 +759,9 @@ class _TxEditScreenState extends State<TxEditScreen> {
                                   key: const Key('amount-field'),
                                   controller: _amountCtl,
                                   focusNode: _amountFocus,
-                                  autofocus: widget.existing == null,
+                                  autofocus:
+                                      widget.existing == null &&
+                                      widget.copyOf == null,
                                   readOnly: true,
                                   showCursor: true,
                                   enableInteractiveSelection: false,
@@ -894,6 +946,34 @@ class _TxEditScreenState extends State<TxEditScreen> {
                                   ),
                                 ],
                               ],
+                            ),
+                            const SizedBox(height: 6),
+                            TextField(
+                              key: const Key('comment-field'),
+                              controller: _commentCtl,
+                              focusNode: _commentFocus,
+                              minLines: 1,
+                              maxLines: 3,
+                              keyboardType: TextInputType.multiline,
+                              textCapitalization: TextCapitalization.sentences,
+                              style: const TextStyle(fontSize: 15),
+                              onTapOutside: (_) => _commentFocus.unfocus(),
+                              decoration: const InputDecoration(
+                                hintText: 'Add a comment (optional)',
+                                prefixIcon: Icon(
+                                  Icons.chat_bubble_outline,
+                                  size: 18,
+                                ),
+                                prefixIconConstraints: BoxConstraints(
+                                  minWidth: 34,
+                                  minHeight: 34,
+                                ),
+                                border: OutlineInputBorder(),
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 10,
+                                ),
+                              ),
                             ),
                             const SizedBox(height: 8),
                             SizedBox(

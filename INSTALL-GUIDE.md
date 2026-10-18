@@ -29,6 +29,8 @@ It has no internet permission, no account, no ads and no cloud. Nothing you ente
 | Add an expense, income or transfer | **Add** button (attach a receipt photo if you like) |
 | See where money went | **Reports** tab |
 | Add a bank / cash / UPI account | **Manage** tab → Accounts → **Add** |
+| Copy an entry (same amount, account, category, note) | Tap the entry, then the copy button next to the bin at the top; change anything you like and **Save** |
+| Add a longer comment to an entry | The **comment** box on the **Add** page, below the note |
 | Type an amount or do a quick sum | The keypad on the **Add** page: tap the calculator key for + − × ÷, then **Done** to go to the note |
 | Find a past transaction | The search icon on **Transactions**: search notes, categories, accounts or amounts, and use **Filters** for time period, account, category and amount range |
 | Choose which account new entries start on | **Manage** tab → Accounts → **Edit** → tap an account → **Default account** |

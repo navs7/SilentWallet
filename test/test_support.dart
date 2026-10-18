@@ -60,6 +60,9 @@ class FakeRepo extends Repo {
   Future<bool> hasManualEntryOn(DateTime day) async => manualEntryToday;
 
   @override
+  Future<Uint8List?> readReceipt(String name) async => null;
+
+  @override
   Future<void> saveAccount(Account a) async {
     if (a.archived) a.isDefault = false;
     accounts = [
