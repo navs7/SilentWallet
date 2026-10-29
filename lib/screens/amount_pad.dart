@@ -11,7 +11,9 @@ class AmountPad extends StatelessWidget {
   final ValueChanged<String> onKey;
   final VoidCallback onDone;
   final VoidCallback onEquals;
+  final int gstPercent;
   final VoidCallback onGst;
+  final VoidCallback onGstRate;
   final VoidCallback onClose;
   final VoidCallback onToggleCalculator;
 
@@ -22,7 +24,9 @@ class AmountPad extends StatelessWidget {
     required this.onKey,
     required this.onDone,
     required this.onEquals,
+    this.gstPercent = 5,
     required this.onGst,
+    required this.onGstRate,
     required this.onClose,
     required this.onToggleCalculator,
   });
@@ -182,8 +186,9 @@ class AmountPad extends StatelessWidget {
                     id: 'gst',
                     color: cs.secondaryContainer,
                     onTap: onGst,
+                    onLongPress: onGstRate,
                     child: Text(
-                      '5% GST',
+                      '$gstPercent% GST',
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,

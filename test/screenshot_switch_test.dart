@@ -19,11 +19,13 @@ List<MethodCall> _mockNative(WidgetTester? t) {
   final calls = <MethodCall>[];
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
       .setMockMethodCallHandler(_channel, (call) async {
-    calls.add(call);
-    return null;
-  });
-  addTearDown(() => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-      .setMockMethodCallHandler(_channel, null));
+        calls.add(call);
+        return null;
+      });
+  addTearDown(
+    () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_channel, null),
+  );
   return calls;
 }
 
@@ -74,7 +76,10 @@ void main() {
   });
 
   group('More tab switch', () {
-    Future<(Settings, List<MethodCall>)> pumpMore(WidgetTester t, {Map<String, Object> prefs = const {}}) async {
+    Future<(Settings, List<MethodCall>)> pumpMore(
+      WidgetTester t, {
+      Map<String, Object> prefs = const {},
+    }) async {
       SharedPreferences.setMockInitialValues(prefs);
       final settings = await Settings.load();
       final calls = _mockNative(t);
@@ -82,18 +87,22 @@ void main() {
       t.view.physicalSize = const Size(393, 851);
       addTearDown(t.view.resetPhysicalSize);
       addTearDown(t.view.resetDevicePixelRatio);
-      await t.pumpWidget(MultiProvider(
-        providers: [
-          ChangeNotifierProvider<Settings>.value(value: settings),
-          ChangeNotifierProvider<Repo>.value(value: FakeRepo()),
-          ChangeNotifierProvider<LockController>.value(value: LockController(settings)),
-        ],
-        child: MaterialApp(
-          theme: buildTheme(Brightness.light),
-          builder: compactText,
-          home: const Scaffold(body: MoreScreen()),
+      await t.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<Settings>.value(value: settings),
+            ChangeNotifierProvider<Repo>.value(value: FakeRepo()),
+            ChangeNotifierProvider<LockController>.value(
+              value: LockController(settings),
+            ),
+          ],
+          child: MaterialApp(
+            theme: buildTheme(Brightness.light),
+            builder: compactText,
+            home: const Scaffold(body: MoreScreen()),
+          ),
         ),
-      ));
+      );
       await t.pumpAndSettle();
       return (settings, calls);
     }
@@ -104,10 +113,15 @@ void main() {
       await pumpMore(t);
       expect(tile(), findsOneWidget);
       expect(t.widget<SwitchListTile>(tile()).value, isFalse);
-      expect(find.textContaining('screenshots and screen recording are blocked'), findsOneWidget);
+      expect(
+        find.textContaining('screenshots and screen recording are blocked'),
+        findsOneWidget,
+      );
     });
 
-    testWidgets('turning it on allows screenshots (clears the secure flag)', (t) async {
+    testWidgets('turning it on allows screenshots (clears the secure flag)', (
+      t,
+    ) async {
       final (settings, calls) = await pumpMore(t);
       await t.tap(tile());
       await t.pumpAndSettle();
@@ -118,7 +132,10 @@ void main() {
     });
 
     testWidgets('turning it off blocks screenshots again', (t) async {
-      final (settings, calls) = await pumpMore(t, prefs: {'allow_screenshots': true});
+      final (settings, calls) = await pumpMore(
+        t,
+        prefs: {'allow_screenshots': true},
+      );
       expect(t.widget<SwitchListTile>(tile()).value, isTrue);
       await t.tap(tile());
       await t.pumpAndSettle();

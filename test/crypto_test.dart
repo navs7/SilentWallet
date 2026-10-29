@@ -47,7 +47,8 @@ void main() {
 
   group('password backup container', () {
     final payload = Uint8List.fromList(
-        utf8.encode(jsonEncode({'accounts': [], 'note': 'नमस्ते ₹100'})));
+      utf8.encode(jsonEncode({'accounts': [], 'note': 'नमस्ते ₹100'})),
+    );
 
     test('round-trips with the right password', () async {
       final enc = await encryptBackup(payload, 'correct horse');
@@ -64,23 +65,38 @@ void main() {
       final enc = await encryptBackup(payload, 'right-password');
       expect(
         () => decryptBackup(enc, 'wrong-password'),
-        throwsA(isA<BadBackupException>()
-            .having((e) => e.message, 'message', contains('Wrong password'))),
+        throwsA(
+          isA<BadBackupException>().having(
+            (e) => e.message,
+            'message',
+            contains('Wrong password'),
+          ),
+        ),
       );
     });
 
     test('corrupted file is rejected, not crashed on', () async {
       final enc = await encryptBackup(payload, 'right-password');
       enc[enc.length - 5] ^= 0xFF;
-      expect(() => decryptBackup(enc, 'right-password'), throwsA(isA<BadBackupException>()));
+      expect(
+        () => decryptBackup(enc, 'right-password'),
+        throwsA(isA<BadBackupException>()),
+      );
     });
 
     test('non-backup and truncated files are rejected', () async {
-      expect(() => decryptBackup(utf8.encode('hello world, not a backup'), 'x'),
-          throwsA(isA<BadBackupException>()));
-      expect(() => decryptBackup(<int>[], 'x'), throwsA(isA<BadBackupException>()));
-      expect(() => decryptBackup([0x53, 0x57, 0x42, 0x31, 1, 2, 3], 'x'),
-          throwsA(isA<BadBackupException>()));
+      expect(
+        () => decryptBackup(utf8.encode('hello world, not a backup'), 'x'),
+        throwsA(isA<BadBackupException>()),
+      );
+      expect(
+        () => decryptBackup(<int>[], 'x'),
+        throwsA(isA<BadBackupException>()),
+      );
+      expect(
+        () => decryptBackup([0x53, 0x57, 0x42, 0x31, 1, 2, 3], 'x'),
+        throwsA(isA<BadBackupException>()),
+      );
     });
 
     test('random salt makes two backups of the same data differ', () async {
@@ -93,7 +109,9 @@ void main() {
 
     test('handles a large payload (receipt-sized)', () async {
       final r = Random(42);
-      final big = Uint8List.fromList(List.generate(2 * 1024 * 1024, (_) => r.nextInt(256)));
+      final big = Uint8List.fromList(
+        List.generate(2 * 1024 * 1024, (_) => r.nextInt(256)),
+      );
       final enc = await encryptBackup(big, 'big-file-pass');
       expect(await decryptBackup(enc, 'big-file-pass'), big);
     }, timeout: const Timeout(Duration(minutes: 3)));

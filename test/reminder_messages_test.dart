@@ -32,7 +32,8 @@ void main() {
       for (final seed in [0, 1, 99991]) {
         for (var block = 0; block < 80; block++) {
           final seen = {
-            for (var i = 0; i < 7; i++) reminderMessageFor(_day(block * 7 + i), seed: seed),
+            for (var i = 0; i < 7; i++)
+              reminderMessageFor(_day(block * 7 + i), seed: seed),
           };
           expect(seen.length, 7, reason: 'seed $seed block $block');
         }
@@ -42,8 +43,11 @@ void main() {
     test('never the same message on two days in a row', () {
       for (final seed in [0, 1, 42, 123456789]) {
         for (var d = 20000; d < 21500; d++) {
-          expect(reminderMessageFor(_day(d), seed: seed), isNot(reminderMessageFor(_day(d + 1), seed: seed)),
-              reason: 'seed $seed day $d');
+          expect(
+            reminderMessageFor(_day(d), seed: seed),
+            isNot(reminderMessageFor(_day(d + 1), seed: seed)),
+            reason: 'seed $seed day $d',
+          );
         }
       }
     });
@@ -57,20 +61,30 @@ void main() {
     });
 
     test('the time of day does not matter, only the date', () {
-      expect(reminderMessageFor(DateTime(2026, 10, 15, 0, 5), seed: 3),
-          reminderMessageFor(DateTime(2026, 10, 15, 23, 55), seed: 3));
+      expect(
+        reminderMessageFor(DateTime(2026, 10, 15, 0, 5), seed: 3),
+        reminderMessageFor(DateTime(2026, 10, 15, 23, 55), seed: 3),
+      );
     });
 
     test('the order is shuffled: it changes from one week to the next', () {
       final orders = <String>{};
       for (var block = 100; block < 130; block++) {
-        orders.add([for (var i = 0; i < 7; i++) reminderMessageFor(_day(block * 7 + i), seed: 5)].join('|'));
+        orders.add(
+          [
+            for (var i = 0; i < 7; i++)
+              reminderMessageFor(_day(block * 7 + i), seed: 5),
+          ].join('|'),
+        );
       }
       expect(orders.length, greaterThan(20)); // almost every week is different
     });
 
     test('different installs (seeds) get different orders', () {
-      List<String> run(int seed) => [for (var d = 20000; d < 20070; d++) reminderMessageFor(_day(d), seed: seed)];
+      List<String> run(int seed) => [
+        for (var d = 20000; d < 20070; d++)
+          reminderMessageFor(_day(d), seed: seed),
+      ];
       expect(run(1), isNot(run(2)));
       expect(run(2), isNot(run(3)));
     });
@@ -91,12 +105,19 @@ void main() {
   group('the reminder service uses them', () {
     final now = DateTime(2026, 10, 15, 10, 0);
 
-    Future<(ReminderService, FakeBackend, Settings)> make([Map<String, Object> prefs = const {}]) async {
+    Future<(ReminderService, FakeBackend, Settings)> make([
+      Map<String, Object> prefs = const {},
+    ]) async {
       SharedPreferences.setMockInitialValues({'onboarded': true, ...prefs});
       final settings = await Settings.load();
       final backend = FakeBackend();
-      final svc = ReminderService(settings, FakeRepo(),
-          backend: backend, clock: () => now, debounce: const Duration(milliseconds: 10));
+      final svc = ReminderService(
+        settings,
+        FakeRepo(),
+        backend: backend,
+        clock: () => now,
+        debounce: const Duration(milliseconds: 10),
+      );
       addTearDown(svc.dispose);
       return (svc, backend, settings);
     }
@@ -106,7 +127,13 @@ void main() {
       await svc.refresh();
       expect(backend.bodies.length, 30);
       for (final slot in backend.active.keys) {
-        expect(backend.bodies[slot], reminderMessageFor(backend.active[slot]!, seed: settings.reminderSeed));
+        expect(
+          backend.bodies[slot],
+          reminderMessageFor(
+            backend.active[slot]!,
+            seed: settings.reminderSeed,
+          ),
+        );
       }
       // randomised: not one message repeated for every day, and never twice in a row
       expect(backend.bodies.values.toSet().length, 7);
@@ -127,12 +154,18 @@ void main() {
     test('skipping today does not shift the other days\' messages', () async {
       final (svc, backend, _) = await make({'reminder_seed': 17});
       await svc.refresh();
-      final withToday = {for (final e in backend.active.entries) e.value: backend.bodies[e.key]};
+      final withToday = {
+        for (final e in backend.active.entries) e.value: backend.bodies[e.key],
+      };
       final repo = (svc.repo as FakeRepo)..manualEntryToday = true;
       expect(repo.manualEntryToday, isTrue);
       await svc.refresh();
       for (final e in backend.active.entries) {
-        expect(backend.bodies[e.key], withToday[e.value], reason: 'message for ${e.value}');
+        expect(
+          backend.bodies[e.key],
+          withToday[e.value],
+          reason: 'message for ${e.value}',
+        );
       }
     });
 
@@ -147,12 +180,18 @@ void main() {
       expect(settings.reminderSeed, seed);
     });
 
-    test('two installs with different seeds get different message orders', () async {
-      final (a, backendA, _) = await make({'reminder_seed': 1});
-      await a.refresh();
-      final (b, backendB, _) = await make({'reminder_seed': 2});
-      await b.refresh();
-      expect(backendA.bodies.values.toList(), isNot(backendB.bodies.values.toList()));
-    });
+    test(
+      'two installs with different seeds get different message orders',
+      () async {
+        final (a, backendA, _) = await make({'reminder_seed': 1});
+        await a.refresh();
+        final (b, backendB, _) = await make({'reminder_seed': 2});
+        await b.refresh();
+        expect(
+          backendA.bodies.values.toList(),
+          isNot(backendB.bodies.values.toList()),
+        );
+      },
+    );
   });
 }

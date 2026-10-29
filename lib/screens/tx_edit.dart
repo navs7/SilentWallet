@@ -36,6 +36,7 @@ class _TxEditScreenState extends State<TxEditScreen> {
   final _amountFocus = FocusNode();
   final _scroll = ScrollController();
   bool _padOpen = false; // in-app amount keypad showing
+  int _gst = 5; // GST rate on the calculator key (long-press switches 5 <-> 18)
   bool _calc = false; // calculator row shown on the keypad
   Frequency? _repeat; // null = does not repeat (new entries only)
   DateTime? _repeatEnd; // optional last date of the repeat
@@ -138,7 +139,7 @@ class _TxEditScreenState extends State<TxEditScreen> {
 
   void _addGst() {
     final e = AmountEntry(_amountCtl.text);
-    if (e.addPercent(5)) {
+    if (e.addPercent(_gst)) {
       _setAmountText(e.text);
     } else {
       toast(context, 'Enter an amount first.');
@@ -1008,7 +1009,10 @@ class _TxEditScreenState extends State<TxEditScreen> {
                       onKey: _press,
                       onDone: _amountDone,
                       onEquals: _equals,
+                      gstPercent: _gst,
                       onGst: _addGst,
+                      onGstRate: () =>
+                          setState(() => _gst = _gst == 5 ? 18 : 5),
                       onClose: _closePad,
                       onToggleCalculator: () => setState(() => _calc = !_calc),
                     ),

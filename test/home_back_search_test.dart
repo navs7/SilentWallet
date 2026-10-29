@@ -21,11 +21,19 @@ class _Exit {
 
 Future<_Exit> _mockSystemExit(WidgetTester t) async {
   final exit = _Exit();
-  t.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
-    if (call.method == 'SystemNavigator.pop') exit.calls++;
-    return null;
-  });
-  addTearDown(() => t.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, null));
+  t.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+    SystemChannels.platform,
+    (call) async {
+      if (call.method == 'SystemNavigator.pop') exit.calls++;
+      return null;
+    },
+  );
+  addTearDown(
+    () => t.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      null,
+    ),
+  );
   return exit;
 }
 
@@ -34,7 +42,8 @@ Future<void> _back(WidgetTester t) async {
   await t.pumpAndSettle();
 }
 
-int _tab(WidgetTester t) => t.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex;
+int _tab(WidgetTester t) =>
+    t.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex;
 
 Future<void> _pumpHome(WidgetTester t, {List<Tx> txs = const []}) async {
   SharedPreferences.setMockInitialValues({});
@@ -47,18 +56,22 @@ Future<void> _pumpHome(WidgetTester t, {List<Tx> txs = const []}) async {
   t.view.physicalSize = const Size(393, 851);
   addTearDown(t.view.resetPhysicalSize);
   addTearDown(t.view.resetDevicePixelRatio);
-  await t.pumpWidget(MultiProvider(
-    providers: [
-      ChangeNotifierProvider<Settings>.value(value: settings),
-      ChangeNotifierProvider<Repo>.value(value: repo),
-      ChangeNotifierProvider<LockController>.value(value: LockController(settings)),
-    ],
-    child: MaterialApp(
-      theme: buildTheme(Brightness.light),
-      builder: compactText,
-      home: const HomeScreen(),
+  await t.pumpWidget(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider<Settings>.value(value: settings),
+        ChangeNotifierProvider<Repo>.value(value: repo),
+        ChangeNotifierProvider<LockController>.value(
+          value: LockController(settings),
+        ),
+      ],
+      child: MaterialApp(
+        theme: buildTheme(Brightness.light),
+        builder: compactText,
+        home: const HomeScreen(),
+      ),
     ),
-  ));
+  );
   await t.pumpAndSettle();
 }
 
@@ -70,13 +83,29 @@ void main() {
   group('search covers all dates and more than notes', () {
     final txs = [
       sampleTx('1', thisMonth, note: 'Coffee', paise: 12000, categoryId: 'e0'),
-      sampleTx('2', longAgo, note: 'Zomato dinner', paise: 45050, categoryId: 'e0'),
-      sampleTx('3', longAgo, note: 'Weekly shop', paise: 99900, categoryId: 'e1', accountId: 'a2'),
+      sampleTx(
+        '2',
+        longAgo,
+        note: 'Zomato dinner',
+        paise: 45050,
+        categoryId: 'e0',
+      ),
+      sampleTx(
+        '3',
+        longAgo,
+        note: 'Weekly shop',
+        paise: 99900,
+        categoryId: 'e1',
+        accountId: 'a2',
+      ),
     ];
 
     testWidgets('finds a note from another month / year', (t) async {
       await _pumpHome(t, txs: txs);
-      expect(find.textContaining('Zomato dinner'), findsNothing); // not in this month's list
+      expect(
+        find.textContaining('Zomato dinner'),
+        findsNothing,
+      ); // not in this month's list
       await t.tap(find.byTooltip('Search'));
       await t.pumpAndSettle();
       await t.enterText(find.byType(TextField), 'zomato');
@@ -105,7 +134,9 @@ void main() {
       expect(find.textContaining('No transactions match'), findsOneWidget);
     });
 
-    testWidgets('an empty search box shows only the box: no recent notes', (t) async {
+    testWidgets('an empty search box shows only the box: no recent notes', (
+      t,
+    ) async {
       await _pumpHome(t, txs: txs);
       await t.tap(find.byTooltip('Search'));
       await t.pumpAndSettle();
@@ -136,64 +167,130 @@ void main() {
     final d2 = DateTime(now.year, now.month, 2, 12);
     final d3 = DateTime(now.year, now.month, 3, 12);
     final txs = [
-      sampleTx('1', d3.add(const Duration(hours: 1)), note: 'Coffee', paise: 12000, categoryId: 'e0'),
+      sampleTx(
+        '1',
+        d3.add(const Duration(hours: 1)),
+        note: 'Coffee',
+        paise: 12000,
+        categoryId: 'e0',
+      ),
       sampleTx('2', d3, note: 'Lunch', paise: 25000, categoryId: 'e0'),
-      Tx(id: '3', type: TxType.income, amount: 500000, accountId: 'a1', categoryId: 'i1', note: 'Salary', date: d3.subtract(const Duration(hours: 1))),
+      Tx(
+        id: '3',
+        type: TxType.income,
+        amount: 500000,
+        accountId: 'a1',
+        categoryId: 'i1',
+        note: 'Salary',
+        date: d3.subtract(const Duration(hours: 1)),
+      ),
       sampleTx('4', d2, note: '', paise: 9900, categoryId: 'e1'),
-      Tx(id: '5', type: TxType.transfer, amount: 100000, accountId: 'a1', toAccountId: 'a2', note: '', date: d2.subtract(const Duration(hours: 1))),
-      Tx(id: '6', type: TxType.transfer, amount: 50000, accountId: 'a2', toAccountId: 'a1', note: 'Rent share', date: d2.subtract(const Duration(hours: 2))),
+      Tx(
+        id: '5',
+        type: TxType.transfer,
+        amount: 100000,
+        accountId: 'a1',
+        toAccountId: 'a2',
+        note: '',
+        date: d2.subtract(const Duration(hours: 1)),
+      ),
+      Tx(
+        id: '6',
+        type: TxType.transfer,
+        amount: 50000,
+        accountId: 'a2',
+        toAccountId: 'a1',
+        note: 'Rent share',
+        date: d2.subtract(const Duration(hours: 2)),
+      ),
     ];
-    ColorScheme scheme(WidgetTester t) => Theme.of(t.element(find.byType(HomeScreen))).colorScheme;
+    ColorScheme scheme(WidgetTester t) =>
+        Theme.of(t.element(find.byType(HomeScreen))).colorScheme;
     Finder row(String id) => find.byKey(Key('tx-row-$id'));
-    Finder dayCard(DateTime d) => find.byKey(Key('day-card-${d.year}-${d.month}-${d.day}'));
-    Text titleOf(WidgetTester t, String id) => t.widget<ListTile>(row(id)).title as Text;
-    Text subtitleOf(WidgetTester t, String id) => t.widget<ListTile>(row(id)).subtitle as Text;
+    Finder dayCard(DateTime d) =>
+        find.byKey(Key('day-card-${d.year}-${d.month}-${d.day}'));
+    Text titleOf(WidgetTester t, String id) =>
+        t.widget<ListTile>(row(id)).title as Text;
+    Text subtitleOf(WidgetTester t, String id) =>
+        t.widget<ListTile>(row(id)).subtitle as Text;
 
-    testWidgets('entries of the same date are one block: no gaps, no dividers', (t) async {
-      await _pumpHome(t, txs: txs);
-      final card = dayCard(d3);
-      expect(card, findsOneWidget);
-      for (final id in ['1', '2', '3']) {
-        expect(find.descendant(of: card, matching: row(id)), findsOneWidget, reason: 'row $id in the day block');
-      }
-      expect(find.byType(Divider), findsNothing);
-      // rows touch each other (newest first: 1, 2, 3)
-      final r1 = t.getRect(row('1')), r2 = t.getRect(row('2')), r3 = t.getRect(row('3'));
-      expect(r2.top - r1.bottom, closeTo(0, 0.5));
-      expect(r3.top - r2.bottom, closeTo(0, 0.5));
-      // one soft rounded block, no outline
-      final w = t.widget<Card>(card);
-      expect(w.color, scheme(t).surfaceContainer);
-      expect((w.shape as RoundedRectangleBorder).side, BorderSide.none);
-    });
+    testWidgets(
+      'entries of the same date are one block: no gaps, no dividers',
+      (t) async {
+        await _pumpHome(t, txs: txs);
+        final card = dayCard(d3);
+        expect(card, findsOneWidget);
+        for (final id in ['1', '2', '3']) {
+          expect(
+            find.descendant(of: card, matching: row(id)),
+            findsOneWidget,
+            reason: 'row $id in the day block',
+          );
+        }
+        expect(find.byType(Divider), findsNothing);
+        // rows touch each other (newest first: 1, 2, 3)
+        final r1 = t.getRect(row('1')),
+            r2 = t.getRect(row('2')),
+            r3 = t.getRect(row('3'));
+        expect(r2.top - r1.bottom, closeTo(0, 0.5));
+        expect(r3.top - r2.bottom, closeTo(0, 0.5));
+        // one soft rounded block, no outline
+        final w = t.widget<Card>(card);
+        expect(w.color, scheme(t).surfaceContainer);
+        expect((w.shape as RoundedRectangleBorder).side, BorderSide.none);
+      },
+    );
 
-    testWidgets('different dates are clearly separate: header and a gap between blocks', (t) async {
-      await _pumpHome(t, txs: txs);
-      expect(dayCard(d3), findsOneWidget);
-      expect(dayCard(d2), findsOneWidget);
-      final upper = t.getRect(dayCard(d3)), lower = t.getRect(dayCard(d2));
-      expect(lower.top - upper.bottom, greaterThan(20)); // date header sits between
-      final header = find.byKey(Key('day-header-${d2.year}-${d2.month}-${d2.day}'));
-      expect(find.descendant(of: header, matching: find.textContaining('2 ')), findsWidgets);
-    });
+    testWidgets(
+      'different dates are clearly separate: header and a gap between blocks',
+      (t) async {
+        await _pumpHome(t, txs: txs);
+        expect(dayCard(d3), findsOneWidget);
+        expect(dayCard(d2), findsOneWidget);
+        final upper = t.getRect(dayCard(d3)), lower = t.getRect(dayCard(d2));
+        expect(
+          lower.top - upper.bottom,
+          greaterThan(20),
+        ); // date header sits between
+        final header = find.byKey(
+          Key('day-header-${d2.year}-${d2.month}-${d2.day}'),
+        );
+        expect(
+          find.descendant(of: header, matching: find.textContaining('2 ')),
+          findsWidgets,
+        );
+      },
+    );
 
     testWidgets('no coloured edge bar on the left of the rows', (t) async {
       await _pumpHome(t, txs: txs);
-      for (final box in t.widgetList<DecoratedBox>(find.descendant(of: dayCard(d3), matching: find.byType(DecoratedBox)))) {
+      for (final box in t.widgetList<DecoratedBox>(
+        find.descendant(of: dayCard(d3), matching: find.byType(DecoratedBox)),
+      )) {
         final d = box.decoration;
         if (d is BoxDecoration && d.border is Border) {
-          expect((d.border as Border).left.width, 0, reason: 'a left bar is still drawn');
+          expect(
+            (d.border as Border).left.width,
+            0,
+            reason: 'a left bar is still drawn',
+          );
         }
       }
     });
 
-    testWidgets('the note is the main text; category and account go underneath', (t) async {
-      await _pumpHome(t, txs: txs);
-      expect(titleOf(t, '1').data, 'Coffee');
-      expect(subtitleOf(t, '1').data, 'Food & Dining • Cash');
-      expect(titleOf(t, '3').data, 'Salary');
-      expect(subtitleOf(t, '3').data, 'Salary • Cash'); // income category is "Salary" too
-    });
+    testWidgets(
+      'the note is the main text; category and account go underneath',
+      (t) async {
+        await _pumpHome(t, txs: txs);
+        expect(titleOf(t, '1').data, 'Coffee');
+        expect(subtitleOf(t, '1').data, 'Food & Dining • Cash');
+        expect(titleOf(t, '3').data, 'Salary');
+        expect(
+          subtitleOf(t, '3').data,
+          'Salary • Cash',
+        ); // income category is "Salary" too
+      },
+    );
 
     testWidgets('without a note the category is the main text', (t) async {
       await _pumpHome(t, txs: txs);
@@ -201,39 +298,53 @@ void main() {
       expect(subtitleOf(t, '4').data, 'Cash');
     });
 
-    testWidgets('transfers: note or "Transfer" as the main text, the route underneath', (t) async {
-      await _pumpHome(t, txs: txs);
-      expect(titleOf(t, '5').data, 'Transfer');
-      expect(subtitleOf(t, '5').data, 'Cash → HDFC Savings');
-      expect(titleOf(t, '6').data, 'Rent share');
-      expect(subtitleOf(t, '6').data, 'HDFC Savings → Cash');
-    });
+    testWidgets(
+      'transfers: note or "Transfer" as the main text, the route underneath',
+      (t) async {
+        await _pumpHome(t, txs: txs);
+        expect(titleOf(t, '5').data, 'Transfer');
+        expect(subtitleOf(t, '5').data, 'Cash → HDFC Savings');
+        expect(titleOf(t, '6').data, 'Rent share');
+        expect(subtitleOf(t, '6').data, 'HDFC Savings → Cash');
+      },
+    );
 
     testWidgets('amounts keep their red / green colour', (t) async {
       await _pumpHome(t, txs: txs);
-      final expense = t.widget<Text>(find.descendant(of: row('1'), matching: find.textContaining('120')));
-      final income = t.widget<Text>(find.descendant(of: row('3'), matching: find.textContaining('5,000')));
+      final expense = t.widget<Text>(
+        find.descendant(of: row('1'), matching: find.textContaining('120')),
+      );
+      final income = t.widget<Text>(
+        find.descendant(of: row('3'), matching: find.textContaining('5,000')),
+      );
       expect(expense.style!.color, Colors.red.shade400);
       expect(income.style!.color, Colors.green.shade600);
     });
 
     testWidgets('the totals card is a soft tile too', (t) async {
       await _pumpHome(t, txs: txs);
-      final totals = t.widget<Card>(find.ancestor(of: find.text('Income'), matching: find.byType(Card)).first);
+      final totals = t.widget<Card>(
+        find
+            .ancestor(of: find.text('Income'), matching: find.byType(Card))
+            .first,
+      );
       expect(totals.color, scheme(t).surfaceContainer);
       expect((totals.shape as RoundedRectangleBorder).side, BorderSide.none);
     });
 
-    testWidgets('searching by note still finds the entry; results use the same rows', (t) async {
-      await _pumpHome(t, txs: txs);
-      await t.tap(find.byTooltip('Search'));
-      await t.pumpAndSettle();
-      await t.enterText(find.byType(TextField), 'coffee');
-      await t.pumpAndSettle();
-      expect(row('1'), findsOneWidget);
-      expect(row('2'), findsNothing);
-      expect(find.byType(Divider), findsNothing);
-    });
+    testWidgets(
+      'searching by note still finds the entry; results use the same rows',
+      (t) async {
+        await _pumpHome(t, txs: txs);
+        await t.tap(find.byTooltip('Search'));
+        await t.pumpAndSettle();
+        await t.enterText(find.byType(TextField), 'coffee');
+        await t.pumpAndSettle();
+        expect(row('1'), findsOneWidget);
+        expect(row('2'), findsNothing);
+        expect(find.byType(Divider), findsNothing);
+      },
+    );
   });
 
   group('Reports category table', () {
@@ -250,20 +361,37 @@ void main() {
         t.view.physicalSize = size;
         await t.pumpAndSettle();
       }
-      await t.tap(find.descendant(of: find.byType(NavigationBar), matching: find.text('Reports')));
+      await t.tap(
+        find.descendant(
+          of: find.byType(NavigationBar),
+          matching: find.text('Reports'),
+        ),
+      );
       await t.pumpAndSettle();
     }
 
     Finder row(String id) => find.byKey(Key('cat-row-$id'));
-    Finder inRow(String id, String text) => find.descendant(of: row(id), matching: find.text(text));
+    Finder inRow(String id, String text) =>
+        find.descendant(of: row(id), matching: find.text(text));
     Text txt(WidgetTester t, Finder f) => t.widget<Text>(f);
 
-    testWidgets('has a header row, one row per category, and a total row', (t) async {
+    testWidgets('has a header row, one row per category, and a total row', (
+      t,
+    ) async {
       await openReports(t);
       final head = find.byKey(const Key('cat-header'));
-      expect(find.descendant(of: head, matching: find.text('Category')), findsOneWidget);
-      expect(find.descendant(of: head, matching: find.text('Amount')), findsOneWidget);
-      expect(find.descendant(of: head, matching: find.text('Share')), findsOneWidget);
+      expect(
+        find.descendant(of: head, matching: find.text('Category')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: head, matching: find.text('Amount')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: head, matching: find.text('Share')),
+        findsOneWidget,
+      );
       expect(inRow('e2', 'Shopping'), findsOneWidget);
       expect(inRow('e2', '₹1,234.56'), findsOneWidget);
       expect(inRow('e2', '86%'), findsOneWidget);
@@ -272,9 +400,18 @@ void main() {
       expect(inRow('e1', '₹80.00'), findsOneWidget);
       expect(inRow('e1', '6%'), findsOneWidget);
       final total = find.byKey(const Key('cat-total'));
-      expect(find.descendant(of: total, matching: find.text('Total')), findsOneWidget);
-      expect(find.descendant(of: total, matching: find.text('₹1,434.56')), findsOneWidget);
-      expect(find.descendant(of: total, matching: find.text('100%')), findsOneWidget);
+      expect(
+        find.descendant(of: total, matching: find.text('Total')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: total, matching: find.text('₹1,434.56')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: total, matching: find.text('100%')),
+        findsOneWidget,
+      );
     });
 
     testWidgets('biggest first, total last', (t) async {
@@ -282,59 +419,129 @@ void main() {
       double y(String id) => t.getTopLeft(row(id)).dy;
       expect(y('e2'), lessThan(y('e0')));
       expect(y('e0'), lessThan(y('e1')));
-      expect(y('e1'), lessThan(t.getTopLeft(find.byKey(const Key('cat-total'))).dy));
+      expect(
+        y('e1'),
+        lessThan(t.getTopLeft(find.byKey(const Key('cat-total'))).dy),
+      );
     });
 
     testWidgets('the columns line up exactly from row to row', (t) async {
       await openReports(t);
-      final names = {'e2': 'Shopping', 'e0': 'Food & Dining', 'e1': 'Groceries'};
+      final names = {
+        'e2': 'Shopping',
+        'e0': 'Food & Dining',
+        'e1': 'Groceries',
+      };
       final amounts = {'e2': '₹1,234.56', 'e0': '₹120.00', 'e1': '₹80.00'};
       final shares = {'e2': '86%', 'e0': '8%', 'e1': '6%'};
-      final nameLeft = {for (final e in names.entries) t.getRect(inRow(e.key, e.value)).left};
-      final amountRight = {for (final e in amounts.entries) t.getRect(inRow(e.key, e.value)).right};
-      final shareRight = {for (final e in shares.entries) t.getRect(inRow(e.key, e.value)).right};
+      final nameLeft = {
+        for (final e in names.entries) t.getRect(inRow(e.key, e.value)).left,
+      };
+      final amountRight = {
+        for (final e in amounts.entries) t.getRect(inRow(e.key, e.value)).right,
+      };
+      final shareRight = {
+        for (final e in shares.entries) t.getRect(inRow(e.key, e.value)).right,
+      };
       expect(nameLeft.length, 1, reason: 'category names start at the same x');
       expect(amountRight.length, 1, reason: 'amounts end at the same x');
       expect(shareRight.length, 1, reason: 'shares end at the same x');
       // header and total use the same columns
       final head = find.byKey(const Key('cat-header'));
       final total = find.byKey(const Key('cat-total'));
-      expect(t.getRect(find.descendant(of: head, matching: find.text('Amount'))).right, amountRight.single);
-      expect(t.getRect(find.descendant(of: head, matching: find.text('Share'))).right, shareRight.single);
-      expect(t.getRect(find.descendant(of: total, matching: find.text('₹1,434.56'))).right, amountRight.single);
-      expect(t.getRect(find.descendant(of: total, matching: find.text('100%'))).right, shareRight.single);
-      expect(t.getRect(find.descendant(of: head, matching: find.text('Category'))).left, nameLeft.single);
+      expect(
+        t
+            .getRect(find.descendant(of: head, matching: find.text('Amount')))
+            .right,
+        amountRight.single,
+      );
+      expect(
+        t
+            .getRect(find.descendant(of: head, matching: find.text('Share')))
+            .right,
+        shareRight.single,
+      );
+      expect(
+        t
+            .getRect(
+              find.descendant(of: total, matching: find.text('₹1,434.56')),
+            )
+            .right,
+        amountRight.single,
+      );
+      expect(
+        t
+            .getRect(find.descendant(of: total, matching: find.text('100%')))
+            .right,
+        shareRight.single,
+      );
+      expect(
+        t
+            .getRect(find.descendant(of: head, matching: find.text('Category')))
+            .left,
+        nameLeft.single,
+      );
     });
 
-    testWidgets('numbers are right-aligned, tabular and large; the header is small and muted', (t) async {
-      await openReports(t);
-      final amount = txt(t, inRow('e0', '₹120.00'));
-      expect(amount.textAlign, TextAlign.right);
-      expect(amount.style!.fontFeatures, contains(const FontFeature.tabularFigures()));
-      expect(amount.style!.fontSize, greaterThanOrEqualTo(16));
-      expect(amount.style!.fontWeight, FontWeight.w600);
-      final share = txt(t, inRow('e0', '8%'));
-      expect(share.textAlign, TextAlign.right);
-      expect(share.style!.fontFeatures, contains(const FontFeature.tabularFigures()));
-      expect(txt(t, inRow('e0', 'Food & Dining')).style!.fontSize, greaterThanOrEqualTo(16));
-      final head = find.byKey(const Key('cat-header'));
-      final h = txt(t, find.descendant(of: head, matching: find.text('Amount')));
-      expect(h.style!.fontSize, lessThan(14));
-      expect(h.style!.color, isNotNull); // muted colour
-      expect(txt(t, find.descendant(of: find.byKey(const Key('cat-total')), matching: find.text('Total'))).style!.fontWeight, FontWeight.w700);
-    });
+    testWidgets(
+      'numbers are right-aligned, tabular and large; the header is small and muted',
+      (t) async {
+        await openReports(t);
+        final amount = txt(t, inRow('e0', '₹120.00'));
+        expect(amount.textAlign, TextAlign.right);
+        expect(
+          amount.style!.fontFeatures,
+          contains(const FontFeature.tabularFigures()),
+        );
+        expect(amount.style!.fontSize, greaterThanOrEqualTo(16));
+        expect(amount.style!.fontWeight, FontWeight.w600);
+        final share = txt(t, inRow('e0', '8%'));
+        expect(share.textAlign, TextAlign.right);
+        expect(
+          share.style!.fontFeatures,
+          contains(const FontFeature.tabularFigures()),
+        );
+        expect(
+          txt(t, inRow('e0', 'Food & Dining')).style!.fontSize,
+          greaterThanOrEqualTo(16),
+        );
+        final head = find.byKey(const Key('cat-header'));
+        final h = txt(
+          t,
+          find.descendant(of: head, matching: find.text('Amount')),
+        );
+        expect(h.style!.fontSize, lessThan(14));
+        expect(h.style!.color, isNotNull); // muted colour
+        expect(
+          txt(
+            t,
+            find.descendant(
+              of: find.byKey(const Key('cat-total')),
+              matching: find.text('Total'),
+            ),
+          ).style!.fontWeight,
+          FontWeight.w700,
+        );
+      },
+    );
 
-    testWidgets('a long category name is cut with an ellipsis, not pushed into the numbers', (t) async {
-      await openReports(t, size: const Size(340, 800));
-      expect(t.takeException(), isNull);
-      final name = t.getRect(inRow('e0', 'Food & Dining'));
-      final amount = t.getRect(inRow('e0', '₹120.00'));
-      expect(name.right, lessThanOrEqualTo(amount.left + 0.5));
-    });
+    testWidgets(
+      'a long category name is cut with an ellipsis, not pushed into the numbers',
+      (t) async {
+        await openReports(t, size: const Size(340, 800));
+        expect(t.takeException(), isNull);
+        final name = t.getRect(inRow('e0', 'Food & Dining'));
+        final amount = t.getRect(inRow('e0', '₹120.00'));
+        expect(name.right, lessThanOrEqualTo(amount.left + 0.5));
+      },
+    );
   });
 
   group('the Manage tab', () {
-    Finder navItem(String label) => find.descendant(of: find.byType(NavigationBar), matching: find.text(label));
+    Finder navItem(String label) => find.descendant(
+      of: find.byType(NavigationBar),
+      matching: find.text(label),
+    );
 
     testWidgets('the bottom bar says Manage, no longer Accounts', (t) async {
       await _pumpHome(t);
@@ -356,35 +563,50 @@ void main() {
   });
 
   group('Transactions tab and list icons', () {
-    final txs = [sampleTx('1', thisMonth, note: 'Coffee', paise: 12000, categoryId: 'e0')];
-    Finder navItem(String label) =>
-        find.descendant(of: find.byType(NavigationBar), matching: find.text(label));
+    final txs = [
+      sampleTx('1', thisMonth, note: 'Coffee', paise: 12000, categoryId: 'e0'),
+    ];
+    Finder navItem(String label) => find.descendant(
+      of: find.byType(NavigationBar),
+      matching: find.text(label),
+    );
 
-    testWidgets('tapping Transactions while searching shows the transaction list', (t) async {
-      await _pumpHome(t, txs: txs);
-      await t.tap(find.byTooltip('Search'));
-      await t.pumpAndSettle();
-      expect(find.byType(TextField), findsOneWidget); // search is open
-      await t.tap(navItem('Transactions'));
-      await t.pumpAndSettle();
-      expect(find.byType(TextField), findsNothing); // search closed
-      expect(find.byTooltip('Search'), findsOneWidget); // normal header
-      expect(find.textContaining('Coffee'), findsOneWidget); // the month's list
-    });
+    testWidgets(
+      'tapping Transactions while searching shows the transaction list',
+      (t) async {
+        await _pumpHome(t, txs: txs);
+        await t.tap(find.byTooltip('Search'));
+        await t.pumpAndSettle();
+        expect(find.byType(TextField), findsOneWidget); // search is open
+        await t.tap(navItem('Transactions'));
+        await t.pumpAndSettle();
+        expect(find.byType(TextField), findsNothing); // search closed
+        expect(find.byTooltip('Search'), findsOneWidget); // normal header
+        expect(
+          find.textContaining('Coffee'),
+          findsOneWidget,
+        ); // the month's list
+      },
+    );
 
-    testWidgets('coming back to Transactions from another tab also leaves search', (t) async {
-      await _pumpHome(t, txs: txs);
-      await t.tap(find.byTooltip('Search'));
-      await t.pumpAndSettle();
-      await t.tap(navItem('Reports'));
-      await t.pumpAndSettle();
-      await t.tap(navItem('Transactions'));
-      await t.pumpAndSettle();
-      expect(find.byType(TextField), findsNothing);
-      expect(find.textContaining('Coffee'), findsOneWidget);
-    });
+    testWidgets(
+      'coming back to Transactions from another tab also leaves search',
+      (t) async {
+        await _pumpHome(t, txs: txs);
+        await t.tap(find.byTooltip('Search'));
+        await t.pumpAndSettle();
+        await t.tap(navItem('Reports'));
+        await t.pumpAndSettle();
+        await t.tap(navItem('Transactions'));
+        await t.pumpAndSettle();
+        expect(find.byType(TextField), findsNothing);
+        expect(find.textContaining('Coffee'), findsOneWidget);
+      },
+    );
 
-    testWidgets('search text and filters are cleared when the tab is tapped', (t) async {
+    testWidgets('search text and filters are cleared when the tab is tapped', (
+      t,
+    ) async {
       await _pumpHome(t, txs: txs);
       await t.tap(find.byTooltip('Search'));
       await t.pumpAndSettle();
@@ -394,25 +616,53 @@ void main() {
       await t.pumpAndSettle();
       await t.tap(find.byTooltip('Search'));
       await t.pumpAndSettle();
-      expect(t.widget<TextField>(find.byType(TextField)).controller!.text, isEmpty);
+      expect(
+        t.widget<TextField>(find.byType(TextField)).controller!.text,
+        isEmpty,
+      );
     });
 
-    testWidgets('list category icons are small (smaller than the Add-page tags)', (t) async {
-      await _pumpHome(t, txs: txs);
-      final row = find.byType(TxTile);
-      expect(row, findsOneWidget);
-      final icon = t.widget<Icon>(find.descendant(of: row, matching: find.byType(Icon)).first);
-      expect(icon.size, kListIconSize);
-      expect(kListIconSize, lessThan(kCategoryIconSize));
-      expect(t.widget<CircleAvatar>(find.descendant(of: row, matching: find.byType(CircleAvatar))).radius, 13);
-    });
+    testWidgets(
+      'list category icons are small (smaller than the Add-page tags)',
+      (t) async {
+        await _pumpHome(t, txs: txs);
+        final row = find.byType(TxTile);
+        expect(row, findsOneWidget);
+        final icon = t.widget<Icon>(
+          find.descendant(of: row, matching: find.byType(Icon)).first,
+        );
+        expect(icon.size, kListIconSize);
+        expect(kListIconSize, lessThan(kCategoryIconSize));
+        expect(
+          t
+              .widget<CircleAvatar>(
+                find.descendant(of: row, matching: find.byType(CircleAvatar)),
+              )
+              .radius,
+          13,
+        );
+      },
+    );
   });
 
   group('search filters', () {
     final txs = [
       sampleTx('1', thisMonth, note: 'Coffee', paise: 12000, categoryId: 'e0'),
-      sampleTx('2', longAgo, note: 'Zomato dinner', paise: 45050, categoryId: 'e0'),
-      sampleTx('3', longAgo, note: 'Weekly shop', paise: 99900, categoryId: 'e1', accountId: 'a2'),
+      sampleTx(
+        '2',
+        longAgo,
+        note: 'Zomato dinner',
+        paise: 45050,
+        categoryId: 'e0',
+      ),
+      sampleTx(
+        '3',
+        longAgo,
+        note: 'Weekly shop',
+        paise: 99900,
+        categoryId: 'e1',
+        accountId: 'a2',
+      ),
     ];
 
     Future<void> openSearch(WidgetTester t) async {
@@ -438,7 +688,9 @@ void main() {
       await t.pumpAndSettle();
     }
 
-    testWidgets('filters alone (no search text) list matching transactions', (t) async {
+    testWidgets('filters alone (no search text) list matching transactions', (
+      t,
+    ) async {
       await _pumpHome(t, txs: txs);
       await openSearch(t);
       await openSheet(t);
@@ -447,7 +699,13 @@ void main() {
       expect(find.textContaining('Weekly shop'), findsOneWidget);
       expect(find.textContaining('Zomato dinner'), findsNothing);
       expect(find.byKey(const Key('chip-account')), findsOneWidget);
-      expect(find.descendant(of: find.byKey(const Key('chip-account')), matching: find.text('HDFC Savings')), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('chip-account')),
+          matching: find.text('HDFC Savings'),
+        ),
+        findsOneWidget,
+      );
       expect(find.text('1 result across all dates'), findsOneWidget);
     });
 
@@ -473,7 +731,13 @@ void main() {
       expect(find.textContaining('Coffee'), findsOneWidget); // 120
       expect(find.textContaining('Zomato dinner'), findsOneWidget); // 450.50
       expect(find.textContaining('Weekly shop'), findsNothing); // 999
-      expect(find.descendant(of: find.byKey(const Key('chip-amount')), matching: find.text('₹100 – ₹500')), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('chip-amount')),
+          matching: find.text('₹100 – ₹500'),
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('min only and max only', (t) async {
@@ -484,7 +748,13 @@ void main() {
       await apply(t);
       expect(find.textContaining('Weekly shop'), findsOneWidget);
       expect(find.textContaining('Coffee'), findsNothing);
-      expect(find.descendant(of: find.byKey(const Key('chip-amount')), matching: find.text('≥ ₹500')), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('chip-amount')),
+          matching: find.text('≥ ₹500'),
+        ),
+        findsOneWidget,
+      );
       await openSheet(t);
       await t.tap(find.byKey(const Key('filter-reset')));
       await t.pump();
@@ -492,7 +762,13 @@ void main() {
       await apply(t);
       expect(find.textContaining('Coffee'), findsOneWidget);
       expect(find.textContaining('Weekly shop'), findsNothing);
-      expect(find.descendant(of: find.byKey(const Key('chip-amount')), matching: find.text('≤ ₹200')), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('chip-amount')),
+          matching: find.text('≤ ₹200'),
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('a reversed range is swapped', (t) async {
@@ -502,7 +778,13 @@ void main() {
       await t.enterText(find.byKey(const Key('filter-min')), '500');
       await t.enterText(find.byKey(const Key('filter-max')), '100');
       await apply(t);
-      expect(find.descendant(of: find.byKey(const Key('chip-amount')), matching: find.text('₹100 – ₹500')), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('chip-amount')),
+          matching: find.text('₹100 – ₹500'),
+        ),
+        findsOneWidget,
+      );
       expect(find.textContaining('Coffee'), findsOneWidget);
     });
 
@@ -515,8 +797,17 @@ void main() {
       await apply(t);
       expect(find.textContaining('Coffee'), findsOneWidget);
       expect(find.textContaining('Zomato dinner'), findsNothing);
-      expect(find.text('1 result'), findsOneWidget); // no "across all dates" when a period is set
-      expect(find.descendant(of: find.byKey(const Key('chip-period')), matching: find.text('This month')), findsOneWidget);
+      expect(
+        find.text('1 result'),
+        findsOneWidget,
+      ); // no "across all dates" when a period is set
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('chip-period')),
+          matching: find.text('This month'),
+        ),
+        findsOneWidget,
+      );
 
       await openSheet(t);
       await t.tap(find.byKey(const Key('filter-period-last')));
@@ -542,8 +833,14 @@ void main() {
       await openSheet(t);
       await pick(t, 'filter-account', 'HDFC Savings');
       await apply(t);
-      expect(find.textContaining('Zomato dinner'), findsNothing); // paid from Cash, not HDFC
-      expect(find.textContaining('No transactions match "zomato"'), findsOneWidget);
+      expect(
+        find.textContaining('Zomato dinner'),
+        findsNothing,
+      ); // paid from Cash, not HDFC
+      expect(
+        find.textContaining('No transactions match "zomato"'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('chips can be removed one by one or all at once', (t) async {
@@ -556,7 +853,12 @@ void main() {
       expect(find.byKey(const Key('chip-account')), findsOneWidget);
       expect(find.byKey(const Key('chip-amount')), findsOneWidget);
       // remove the account chip only
-      await t.tap(find.descendant(of: find.byKey(const Key('chip-account')), matching: find.byType(Icon)));
+      await t.tap(
+        find.descendant(
+          of: find.byKey(const Key('chip-account')),
+          matching: find.byType(Icon),
+        ),
+      );
       await t.pumpAndSettle();
       expect(find.byKey(const Key('chip-account')), findsNothing);
       expect(find.byKey(const Key('chip-amount')), findsOneWidget);
@@ -568,10 +870,17 @@ void main() {
       expect(find.textContaining('result'), findsNothing);
     });
 
-    testWidgets('the Filters button shows a badge while filters are active', (t) async {
+    testWidgets('the Filters button shows a badge while filters are active', (
+      t,
+    ) async {
       await _pumpHome(t, txs: txs);
       await openSearch(t);
-      Badge badge() => t.widget<Badge>(find.descendant(of: find.byTooltip('Filters'), matching: find.byType(Badge)));
+      Badge badge() => t.widget<Badge>(
+        find.descendant(
+          of: find.byTooltip('Filters'),
+          matching: find.byType(Badge),
+        ),
+      );
       expect(badge().isLabelVisible, isFalse);
       await openSheet(t);
       await t.enterText(find.byKey(const Key('filter-min')), '1');
@@ -579,7 +888,9 @@ void main() {
       expect(badge().isLabelVisible, isTrue);
     });
 
-    testWidgets('Reset clears the sheet; closing search drops the filters', (t) async {
+    testWidgets('Reset clears the sheet; closing search drops the filters', (
+      t,
+    ) async {
       final exit = await _mockSystemExit(t);
       await _pumpHome(t, txs: txs);
       await openSearch(t);
@@ -587,7 +898,13 @@ void main() {
       await t.enterText(find.byKey(const Key('filter-min')), '100');
       await t.tap(find.byKey(const Key('filter-reset')));
       await t.pump();
-      expect(t.widget<TextField>(find.byKey(const Key('filter-min'))).controller!.text, isEmpty);
+      expect(
+        t
+            .widget<TextField>(find.byKey(const Key('filter-min')))
+            .controller!
+            .text,
+        isEmpty,
+      );
       await t.enterText(find.byKey(const Key('filter-min')), '100');
       await apply(t);
       expect(find.byKey(const Key('chip-amount')), findsOneWidget);
@@ -610,7 +927,10 @@ void main() {
       expect(find.byType(TextField), findsOneWidget);
       await _back(t);
       expect(find.byType(TextField), findsNothing); // search closed
-      expect(find.byTooltip('Search'), findsOneWidget); // normal Transactions header
+      expect(
+        find.byTooltip('Search'),
+        findsOneWidget,
+      ); // normal Transactions header
       expect(find.text('Press back again to exit'), findsNothing);
       expect(exit.calls, 0);
       expect(_tab(t), 0);
@@ -626,7 +946,10 @@ void main() {
       await _back(t);
       await t.tap(find.byTooltip('Search'));
       await t.pumpAndSettle();
-      expect(t.widget<TextField>(find.byType(TextField)).controller!.text, isEmpty);
+      expect(
+        t.widget<TextField>(find.byType(TextField)).controller!.text,
+        isEmpty,
+      );
     });
 
     testWidgets('from another tab goes back to Transactions', (t) async {
@@ -638,7 +961,12 @@ void main() {
       await _back(t);
       expect(_tab(t), 0);
       expect(exit.calls, 0);
-      await t.tap(find.descendant(of: find.byType(NavigationBar), matching: find.text('Manage')));
+      await t.tap(
+        find.descendant(
+          of: find.byType(NavigationBar),
+          matching: find.text('Manage'),
+        ),
+      );
       await t.pumpAndSettle();
       expect(_tab(t), 2);
       await _back(t);
@@ -670,16 +998,20 @@ void main() {
   });
 
   group('BackGuard', () {
-    testWidgets('a second press after the window expires does not exit', (t) async {
+    testWidgets('a second press after the window expires does not exit', (
+      t,
+    ) async {
       var exited = 0;
-      await t.pumpWidget(MaterialApp(
-        home: BackGuard(
-          window: const Duration(milliseconds: 100),
-          onBack: () => false,
-          onExit: () => exited++,
-          child: const Scaffold(body: Text('page')),
+      await t.pumpWidget(
+        MaterialApp(
+          home: BackGuard(
+            window: const Duration(milliseconds: 100),
+            onBack: () => false,
+            onExit: () => exited++,
+            child: const Scaffold(body: Text('page')),
+          ),
         ),
-      ));
+      );
       await t.binding.handlePopRoute();
       await t.pumpAndSettle();
       await t.runAsync(() => Future.delayed(const Duration(milliseconds: 250)));
