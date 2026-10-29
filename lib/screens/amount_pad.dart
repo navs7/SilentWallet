@@ -187,13 +187,31 @@ class AmountPad extends StatelessWidget {
                     color: cs.secondaryContainer,
                     onTap: onGst,
                     onLongPress: onGstRate,
-                    child: Text(
-                      '$gstPercent% GST',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: cs.onSecondaryContainer,
-                      ),
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Text(
+                          '$gstPercent% GST',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: cs.onSecondaryContainer,
+                          ),
+                        ),
+                        // subtle hint that a long press switches the rate
+                        Positioned(
+                          right: 3,
+                          top: 3,
+                          child: Icon(
+                            Icons.unfold_more,
+                            key: const Key('pad-gst-hint'),
+                            size: 12,
+                            color: cs.onSecondaryContainer.withValues(
+                              alpha: 0.6,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   )
                 : _key(context, id: 'blank'),
