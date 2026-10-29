@@ -50,6 +50,24 @@ void main() {
     });
   });
 
+  group('AmountEntry addPercent', () {
+    test('5% GST multiplies by 1.05', () {
+      expect((AmountEntry('100')..addPercent(5)).text, '105');
+      expect((AmountEntry('199.99')..addPercent(5)).text, '209.99');
+      expect((AmountEntry('10')..addPercent(5)).text, '10.5');
+    });
+    test('works out a pending calculation first', () {
+      expect((AmountEntry('50+50')..addPercent(5)).text, '105');
+    });
+    test('rejects empty, zero and incomplete input', () {
+      for (final t in ['', '0', '5+']) {
+        final e = AmountEntry(t);
+        expect(e.addPercent(5), isFalse);
+        expect(e.text, t);
+      }
+    });
+  });
+
   group('AmountEntry keys', () {
     AmountEntry type(String keys) {
       final e = AmountEntry();

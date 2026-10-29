@@ -93,6 +93,16 @@ class AmountEntry {
     return true;
   }
 
+  /// Adds [percent]% on top of the amount (5% GST: multiplies by 1.05). A
+  /// pending calculation is worked out first. False if there is no valid
+  /// amount above zero.
+  bool addPercent(num percent) {
+    final v = value;
+    if (v == null || v <= 0) return false;
+    text = formatAmount(v * (1 + percent / 100));
+    return true;
+  }
+
   String get _currentNumber {
     var i = text.length;
     while (i > 0 && !_operators.contains(text[i - 1])) {

@@ -136,6 +136,15 @@ class _TxEditScreenState extends State<TxEditScreen> {
     _setAmountText(e.text);
   }
 
+  void _addGst() {
+    final e = AmountEntry(_amountCtl.text);
+    if (e.addPercent(5)) {
+      _setAmountText(e.text);
+    } else {
+      toast(context, 'Enter an amount first.');
+    }
+  }
+
   void _equals() {
     final e = AmountEntry(_amountCtl.text);
     if (e.equals()) {
@@ -999,6 +1008,7 @@ class _TxEditScreenState extends State<TxEditScreen> {
                       onKey: _press,
                       onDone: _amountDone,
                       onEquals: _equals,
+                      onGst: _addGst,
                       onClose: _closePad,
                       onToggleCalculator: () => setState(() => _calc = !_calc),
                     ),
